@@ -37,7 +37,10 @@ def vision_languages(language: str) -> list[str]:
     elif low.startswith("en"):
         return ["en-US"]
     else:
-        main = lang
+        # Vision 要「語言-地區」：fr → fr-FR、pt → pt-BR …；已經帶地區的照用
+        regions = {"fr": "fr-FR", "de": "de-DE", "es": "es-ES", "it": "it-IT", "pt": "pt-BR", "ru": "ru-RU",
+                   "uk": "uk-UA", "th": "th-TH", "vi": "vi-VT", "ar": "ar-SA"}
+        main = lang if "-" in lang else regions.get(low, lang)
     return [main, "en-US"]  # 程式碼與錯誤訊息大多是英文：一律一起認
 
 
@@ -45,12 +48,26 @@ class OcrMac:
     """Apple Vision（VNRecognizeTextRequest），macOS 內建、離線。"""
 
     def __init__(self, language: str = "") -> None:
+        import objc
         import Vision  # pyobjc-framework-Vision
         from Foundation import NSData
-        self._Vision, self._NSData = Vision, NSData
+        self._Vision, self._NSData, self._objc = Vision, NSData, objc
         self.langs = vision_languages(language)
+        if self.langs:  # 只留這台 Mac 的 Vision 真的支援的語言（不支援的會讓整個辨識失敗）
+            try:
+                req = Vision.VNRecognizeTextRequest.alloc().init()
+                req.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+                ok_langs, _err = req.supportedRecognitionLanguagesAndReturnError_(None)
+                supported = {str(x) for x in (ok_langs or [])}
+                self.langs = [x for x in self.langs if x in supported] if supported else self.langs
+            except Exception:
+                pass
 
     def recognize(self, img: Image.Image) -> list[str]:
+        with self._objc.autorelease_pool():  # daemon 沒有 run loop：不包的話每張圖的 NSData / 結果都會漏
+            return self._recognize(img)
+
+    def _recognize(self, img: Image.Image) -> list[str]:
         buf = io.BytesIO()
         img.convert("RGB").save(buf, "PNG")
         raw = buf.getvalue()

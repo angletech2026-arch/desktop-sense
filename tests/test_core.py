@@ -734,5 +734,96 @@ class MacLogicTest(unittest.TestCase):
         self.assertEqual(PV.classify("com.google.Chrome", "GitHub"), "ok")
 
 
+class MacReviewFixTest(unittest.TestCase):
+    """Mac 版審查找到的問題：每個釘一個測試（純邏輯，Windows 上也能跑）。"""
+
+    def test_incognito_probe_is_async_and_fail_safe(self):
+        import time as _t
+        from unittest import mock
+        import dsense.mac as M
+        answers = {"out": "incognito\n", "rc": 0}
+
+        def fake_run(cmd, **kw):
+            _t.sleep(0.05)
+            return type("R", (), {"returncode": answers["rc"], "stdout": answers["out"], "stderr": "denied"})()
+        with mock.patch.object(M.subprocess, "run", side_effect=fake_run):
+            p = M.IncognitoProbe()
+            t0 = _t.time()
+            self.assertIsNone(p.is_private(11, "com.google.Chrome"))   # 還在問：不等待、回傳 None
+            self.assertLess(_t.time() - t0, 0.04)
+            for _ in range(50):
+                if 11 not in p._pending:
+                    break
+                _t.sleep(0.01)
+            self.assertTrue(p.is_private(11, "com.google.Chrome"))      # 問到了：是無痕
+            answers.update(rc=1, out="")
+            self.assertIsNone(p.is_private(12, "com.google.Chrome"))
+            for _ in range(50):
+                if 12 not in p._pending:
+                    break
+                _t.sleep(0.01)
+            self.assertIsNone(p.is_private(12, "com.google.Chrome"))    # 被拒絕：維持 None（呼叫端當成不截圖）
+        self.assertIsNone(M.IncognitoProbe().is_private(1, "com.apple.Safari"))  # Safari 問不了
+
+    def test_mac_unknown_incognito_means_title_only(self):
+        from unittest import mock
+        import dsense.daemon as D
+        d = D.Daemon.__new__(D.Daemon)
+        d.cfg = json.loads(json.dumps(DEFAULTS))
+        d.privacy = PV
+        d._browsers = {a.lower() for a in d.cfg["apps"]["browser"]}
+        d._incognito = type("P", (), {"is_private": lambda self, h, a="": None})()
+        d._sensitive_ctx, d.cur, d.segs = set(), None, []
+        d._dwell_shot_done, d._last_thumb = False, None
+        events = []
+        d.store = type("S", (), {"append_event": lambda self, ev: events.append(ev)})()
+        fg = {"hwnd": 5, "pid": 1, "app": "com.google.Chrome", "title": "GitHub", "cls": "", "minimized": False}
+        with mock.patch.object(D, "IS_MAC", True):
+            d._on_foreground(fg, time.time())
+        self.assertEqual(d.cur["kind"], "nocap")                        # 不知道是不是無痕 → 不截圖
+        d.cur = None
+        with mock.patch.object(D, "IS_MAC", False):
+            d._on_foreground(fg, time.time())
+        self.assertEqual(d.cur["kind"], "ok")                           # Windows 行為不變
+
+    def test_zsh_unmetafy_keeps_privacy_rules_working(self):
+        from dsense.history import parse_history, unmetafy_zsh
+        raw = ": 1696000000:0;vim 病歷.md\n".encode("utf-8")
+        meta = bytearray()
+        for b in raw:
+            if 0x83 <= b <= 0x9F:
+                meta += bytes([0x83, b ^ 0x20])
+            else:
+                meta.append(b)
+        self.assertNotEqual(bytes(meta), raw)
+        cmd = parse_history(unmetafy_zsh(bytes(meta)).decode("utf-8"))[0]
+        self.assertEqual(cmd, "vim 病歷.md")
+        self.assertTrue(PV.text_blocked(cmd))
+
+    def test_bash_timestamps_skipped(self):
+        from dsense.history import parse_history
+        self.assertEqual(parse_history("#1696000000\nls -la\n#1696000005\npwd\n"), ["ls -la", "pwd"])
+
+    def test_vision_region_codes(self):
+        from dsense.ocr import vision_languages
+        self.assertEqual(vision_languages("fr"), ["fr-FR", "en-US"])
+        self.assertEqual(vision_languages("pt"), ["pt-BR", "en-US"])
+        self.assertEqual(vision_languages("de-DE"), ["de-DE", "en-US"])
+
+    def test_launch_agent_can_skip_login_start(self):
+        import plistlib
+        from dsense.cli import launch_agent_plist
+        d = plistlib.loads(launch_agent_plist("/p", "/d.py", "/l", "/usr/bin", run_at_load=False))
+        self.assertFalse(d["RunAtLoad"])
+        self.assertNotIn("ProcessType", d)
+
+    def test_claude_lookup_never_relative(self):
+        from unittest import mock
+        import dsense.analyzer as A
+        with mock.patch.dict("os.environ", {"APPDATA": "", "CLAUDE_CODE_EXECPATH": "", "PATH": ""}, clear=False), \
+                mock.patch.object(A.Path, "is_file", return_value=False):
+            self.assertIsNone(A.resolve_claude())
+
+
 if __name__ == "__main__":
     unittest.main()

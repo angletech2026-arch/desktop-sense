@@ -37,6 +37,19 @@ check("vision ocr", any("TypeError" in ln for ln in lines), repr(lines)[:120])
 lines_zh = Ocr("zh-Hant-TW").recognize(img)
 check("vision ocr with language list", any("TypeError" in ln for ln in lines_zh), repr(lines_zh)[:120])
 
+# 1b. CGImage → PIL pixel layout (the screenshot path can't be exercised without permission, so build an image)
+import Quartz  # noqa: E402
+
+from dsense.mac import cgimage_to_pil  # noqa: E402
+cs = Quartz.CGColorSpaceCreateDeviceRGB()
+ctx = Quartz.CGBitmapContextCreate(None, 120, 80, 8, 0, cs,
+                                   Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little)
+Quartz.CGContextSetRGBFillColor(ctx, 1.0, 0.0, 0.0, 1.0)
+Quartz.CGContextFillRect(ctx, Quartz.CGRectMake(0, 0, 120, 80))
+pil = cgimage_to_pil(Quartz.CGBitmapContextCreateImage(ctx))
+px = pil.getpixel((10, 10)) if pil else None
+check("cgimage_to_pil decodes BGRA correctly", px is not None and px[0] > 240 and px[1] < 15 and px[2] < 15, str(px))
+
 # 2. Frontmost app / window
 fg = osapi.foreground()
 check("foreground() returns a dict", fg is None or isinstance(fg, dict), repr(fg)[:160])
@@ -71,6 +84,12 @@ check("second process can't take the lock", "second: True" in out, out.strip())
 from dsense.mac import IncognitoProbe, toast  # noqa: E402
 toast("desktop-sense smoke test", "hello from CI")
 check("incognito probe on non-browser returns None", IncognitoProbe().is_private(1, "com.apple.Terminal") is None)
+import time as _time  # noqa: E402
+t0 = _time.time()
+pending = IncognitoProbe().is_private(2, "com.google.Chrome")   # Chrome isn't running on CI: must not block
+check("incognito probe never blocks the daemon", pending is None and _time.time() - t0 < 0.5, f"{_time.time() - t0:.2f}s")
+check("vision language filter keeps supported codes", set(Ocr("zh-Hant-TW").langs) <= {"zh-Hant", "en-US"},
+      str(Ocr("zh-Hant-TW").langs))
 
 # 7. CLI entry points
 cli = subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / "ds.py"), "--help"],

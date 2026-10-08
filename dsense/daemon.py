@@ -74,6 +74,8 @@ class Daemon:
         self._err_hits: dict[str, list[float]] = {}
         self._win_err_counts: dict[tuple, dict[str, int]] = {}  # 各視窗上一張截圖裡，每個錯誤出現幾次
         self._incognito = IncognitoProbe(self.log)
+        self._capture_ok = True          # macOS：螢幕錄製權限（Windows 不需要）
+        self._last_perm_check = time.time()
         self._browsers = {a.lower() for a in self.cfg["apps"]["browser"]}
         self._research_pending: set[str] = set()
         self._researched: dict[str, float] = {}
@@ -106,7 +108,10 @@ class Daemon:
             return
         set_dpi_aware()
         if IS_MAC:
-            ensure_capture_permission(self.log)
+            self._capture_ok = ensure_capture_permission(self.log)
+            # launchctl bootout / 登出時送 SIGTERM：要能正常收尾（寫 stop 事件、關區段）
+            import signal
+            signal.signal(signal.SIGTERM, lambda *_: self._stop.set())
         for err in self.privacy.errors:
             self.log(L("⚠ 隱私", "⚠ privacy: ") + err)
         if self.cfg.get("_config_error"):
@@ -203,6 +208,14 @@ class Daemon:
             self._maybe_periodic(now)
             return
 
+        if IS_MAC and now - self._last_perm_check >= 600:  # 權限可能被收回（macOS 15 會定期要使用者重新確認）
+            self._last_perm_check = now
+            ok = ensure_capture_permission(lambda m: None)
+            if not ok and self._capture_ok:
+                toast("desktop-sense", L("螢幕錄製權限沒了：截圖已停止。到系統設定打開後執行 ds restart。",
+                                         "Screen Recording permission is off: screenshots stopped. "
+                                         "Re-enable it in System Settings, then run ds restart."))
+            self._capture_ok = ok
         fg = foreground()
         if fg and not fg["minimized"] and fg["title"] != "":
             self._on_foreground(fg, now)
@@ -221,8 +234,12 @@ class Daemon:
         raw = fg["title"]
         kind = self.privacy.classify(fg["app"], raw)
         # Chrome 系的無痕視窗標題看不出來：問無障礙樹（每個視窗只查一次）
-        if kind == "ok" and fg["app"].lower() in self._browsers and self._incognito.is_private(fg["hwnd"], fg["app"]):
-            kind = "blocked"
+        if kind == "ok" and fg["app"].lower() in self._browsers:
+            private = self._incognito.is_private(fg["hwnd"], fg["app"])
+            if private:
+                kind = "blocked"
+            elif private is None and IS_MAC:
+                kind = "nocap"  # 確認不了是不是無痕：寧可不截（Windows 查不到時照標題規則）
         title, norm = self._title_key(raw)  # 標題一律先遮蔽才留（email、金鑰…）
         if kind == "ok" and (fg["app"], norm) in self._sensitive_ctx:
             kind = "blocked"  # 這個視窗之前被 OCR 判定為敏感，回來時直接遮蔽
@@ -640,6 +657,7 @@ class Daemon:
             "analyzer": self.analyzer.available(),
             "analyzer_backend": self.analyzer.describe(),
             "ocr": self.ocr is not None,
+            "capture_permission": self._capture_ok,
             "calls_last_hour": len([t for t in self._call_times if now - t < 3600]),
         }
         self.store.write_json(self.store.state_path, state)

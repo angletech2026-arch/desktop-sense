@@ -57,17 +57,19 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 ### macOS（測試版）
 
-需要：macOS 12 以上、Python 3.10 以上（`brew install python`）、Claude Code／Codex CLI／Gemini CLI 其中之一。
+需要：macOS 12 以上、Python 3.10 以上（`brew install python`）、Claude Code／Codex CLI／Gemini CLI 其中之一。請 clone 到像 `~/desktop-sense` 這種地方，**不要**放在「文件」「桌面」「下載項目」或 iCloud 雲碟裡（macOS 不讓背景程式讀那些資料夾，iCloud 還會把截圖上傳；安裝程式會擋）。
 
 ```bash
-git clone https://github.com/angletech2026-arch/desktop-sense
-cd desktop-sense
+git clone https://github.com/angletech2026-arch/desktop-sense ~/desktop-sense
+cd ~/desktop-sense
 ./install.sh
 ```
 
-裝好後到「系統設定 → 隱私權與安全性 → 螢幕錄製」把 Python 打開，再執行 `ds restart`。沒開的話只能知道你在用哪個 App，看不到視窗標題、也不能截圖。第一次切到 Chrome 系瀏覽器時，macOS 會問 Python 能不能控制它，這是用來判斷無痕視窗的，請允許。
+裝好後到「系統設定 → 隱私權與安全性 → 螢幕錄製」把 Python 打開，再執行 `ds restart`。沒開的話只能知道你在用哪個 App，看不到視窗標題、也不能截圖；`ds status` 會告訴你權限有沒有開，之後 macOS 收回權限時也會跳通知提醒（`brew upgrade python` 之後可能要重新授權）。
 
-Mac 版用 Quartz 讀視窗、Apple 內建的 Vision 做文字辨識，App 用 bundle id（例：`com.google.Chrome`）辨識，換系統語言規則也不會失效。Mac 版有在 macOS 上跑自動測試，但實際用過的人還不多，有問題請開 issue。已知限制：Safari 的私密視窗沒辦法從外部判斷，有在用的話請把 `com.apple.Safari` 加進 `privacy.no_capture_apps`。
+Mac 上的無痕偵測：Chrome、Brave、Edge、Vivaldi、Opera 會直接問瀏覽器「最前面的視窗是不是無痕」（macOS 會問你一次 Python 能不能控制瀏覽器）。在你允許之前，以及 Safari、Arc（沒辦法從外部問），瀏覽器視窗一律**只記標題、不截圖**。隱私優先：判斷不了就不截。
+
+技術上用 Quartz 讀視窗、Apple 內建的 Vision 在本機做文字辨識，App 用 bundle id（例：`com.google.Chrome`）辨識，換系統語言規則也不會失效。Mac 版有在 macOS 上跑自動測試，但實際用過的人還不多，有問題請開 issue。
 
 接著直接問 AI：
 

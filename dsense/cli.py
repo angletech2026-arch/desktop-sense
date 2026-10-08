@@ -97,6 +97,8 @@ def cmd_start(store: Store, cfg: dict, args) -> int:
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
         subprocess.Popen([exe, str(ROOT / "ds.py"), "daemon"], cwd=str(ROOT),
                          creationflags=flags, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif IS_MAC:
+        _launchd_start(store)
     else:  # 跟這個終端機脫鉤：關掉終端機 daemon 照樣跑
         subprocess.Popen([exe, str(ROOT / "ds.py"), "daemon"], cwd=str(ROOT), start_new_session=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -159,6 +161,10 @@ def cmd_status(store: Store, cfg: dict, args) -> int:
             f"OCR: {'on' if st.get('ocr') else 'off'}"))
     calls, cap = st.get('calls_last_hour', 0), cfg['analyzer']['max_calls_per_hour']
     print(L(f"本小時分析次數：{calls} / {cap}", f"analyses in the last hour: {calls} / {cap}"))
+    if st.get("capture_permission") is False:
+        print(L("⚠ 沒有螢幕錄製權限：看不到視窗標題、不會截圖。系統設定 → 隱私權與安全性 → 螢幕錄製 → 打開 Python，再 ds restart",
+                "⚠ no Screen Recording permission: no window titles, no screenshots. System Settings > Privacy & Security > "
+                "Screen Recording > enable Python, then ds restart"))
     if st.get("paused_until", 0) > time.time():
         print(L(f"⏸ 暫停到 {hm(st['paused_until'])}", f"⏸ paused until {hm(st['paused_until'])}"))
     cur = st.get("current")
@@ -213,7 +219,7 @@ def cmd_watch(store: Store, cfg: dict, args) -> int:
     try:
         while True:
             st = store.read_state()
-            os.system("cls")
+            os.system("cls" if os.name == "nt" else "clear")
             if not st:
                 print(L("等待 daemon…", "Waiting for daemon…"))
             else:
@@ -608,31 +614,58 @@ def launch_agent_path() -> Path:
     return Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 
 
-def launch_agent_plist(python: str, ds_py: str, log_path: str, path_env: str) -> bytes:
+def launch_agent_plist(python: str, ds_py: str, log_path: str, path_env: str, run_at_load: bool = True) -> bytes:
     """macOS 登入時自動啟動 daemon 的 LaunchAgent。PATH 帶安裝當下的，daemon 才找得到 claude。"""
     import plistlib
     return plistlib.dumps({
         "Label": LAUNCH_LABEL,
         "ProgramArguments": [python, ds_py, "daemon"],
-        "RunAtLoad": True,
+        "RunAtLoad": run_at_load,
         "KeepAlive": False,
-        "ProcessType": "Background",
         "EnvironmentVariables": {"PATH": path_env},
         "StandardOutPath": log_path,
         "StandardErrorPath": log_path,
     })
 
 
+def _write_launch_agent(store: Store, run_at_load: bool) -> Path:
+    plist = launch_agent_path()
+    plist.parent.mkdir(parents=True, exist_ok=True)
+    plist.write_bytes(launch_agent_plist(_py(), str(ROOT / "ds.py"), str(store.root / "launchd.log"),
+                                         os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"), run_at_load))
+    return plist
+
+
+def _launchd_reload(plist: Path) -> bool:
+    """bootout 之後服務要一點時間才卸載乾淨，bootstrap 太快會失敗：重試幾次。"""
+    domain = f"gui/{os.getuid()}"
+    subprocess.run(["launchctl", "bootout", f"{domain}/{LAUNCH_LABEL}"], capture_output=True)
+    for _ in range(10):
+        if subprocess.run(["launchctl", "bootstrap", domain, str(plist)], capture_output=True).returncode == 0:
+            return True
+        time.sleep(0.3)
+    return False
+
+
+def _launchd_start(store: Store) -> None:
+    """用 launchd 啟動 daemon（沒開自動啟動的話，LaunchAgent 設成登入時不自動跑，只拿來啟動這一次）。"""
+    plist = launch_agent_path()
+    if not plist.exists():
+        plist = _write_launch_agent(store, run_at_load=False)
+    domain = f"gui/{os.getuid()}"
+    if subprocess.run(["launchctl", "print", f"{domain}/{LAUNCH_LABEL}"], capture_output=True).returncode != 0:
+        _launchd_reload(plist)
+    subprocess.run(["launchctl", "kickstart", f"{domain}/{LAUNCH_LABEL}"], capture_output=True)
+
+
 def _autostart_mac(store: Store, action: str) -> int:
     plist = launch_agent_path()
     domain = f"gui/{os.getuid()}"
     if action == "on":
-        plist.parent.mkdir(parents=True, exist_ok=True)
-        plist.write_bytes(launch_agent_plist(_py(), str(ROOT / "ds.py"), str(store.root / "launchd.log"),
-                                             os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")))
-        subprocess.run(["launchctl", "bootout", f"{domain}/{LAUNCH_LABEL}"], capture_output=True)
-        subprocess.run(["launchctl", "bootstrap", domain, str(plist)], capture_output=True)
-        print(L("已設定登入時自動啟動：", "Autostart enabled: ") + str(plist))
+        plist = _write_launch_agent(store, run_at_load=True)
+        ok = _launchd_reload(plist)
+        print(L("已設定登入時自動啟動：", "Autostart enabled: ") + str(plist)
+              + ("" if ok else L("（launchctl 載入失敗，看 ds tail）", " (launchctl load failed; see ds tail)")))
     elif action == "off":
         subprocess.run(["launchctl", "bootout", f"{domain}/{LAUNCH_LABEL}"], capture_output=True)
         if plist.exists():

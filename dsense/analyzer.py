@@ -167,10 +167,12 @@ def resolve_claude() -> str | None:
         if p and Path(p).is_absolute():
             return p
     home = Path.home()
-    for guess in (Path(os.environ.get("APPDATA", "")) / "npm" / "node_modules" / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe",
-                  home / ".claude" / "local" / "claude", home / ".local" / "bin" / "claude",
-                  Path("/opt/homebrew/bin/claude"), Path("/usr/local/bin/claude"), home / ".npm-global" / "bin" / "claude"):
-        if guess.is_file():
+    guesses = [home / ".claude" / "local" / "claude", home / ".local" / "bin" / "claude",
+               Path("/opt/homebrew/bin/claude"), Path("/usr/local/bin/claude"), home / ".npm-global" / "bin" / "claude"]
+    if os.environ.get("APPDATA"):  # 沒設 APPDATA 時不能拼出相對路徑（會變成去目前資料夾找 claude.exe）
+        guesses.insert(0, Path(os.environ["APPDATA"]) / "npm" / "node_modules" / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe")
+    for guess in guesses:
+        if guess.is_absolute() and guess.is_file():
             return str(guess)
     return None
 

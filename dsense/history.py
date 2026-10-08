@@ -8,6 +8,17 @@ from .config import expand
 
 _WS = re.compile(r"\s+")
 _ZSH_EXT = re.compile(r"^: \d+:\d+;")  # zsh EXTENDED_HISTORY：「: 1696000000:0;git push」
+_BASH_TS = re.compile(r"^#\d{9,}$")    # bash HISTTIMEFORMAT 的時間戳行
+
+
+def unmetafy_zsh(data: bytes) -> bytes:
+    """zsh 存歷史時會把 0x83–0x9F 這些位元組「metafy」（前面加 0x83、本身 XOR 0x20）。
+    不還原的話中文（UTF-8 多位元組）會變亂碼，「病歷」這類隱私規則就比對不到。"""
+    out = bytearray()
+    it = iter(data)
+    for c in it:
+        out.append((next(it, 0x20) ^ 0x20) if c == 0x83 else c)
+    return bytes(out)
 
 
 def parse_history(text: str) -> list[str]:
@@ -16,6 +27,8 @@ def parse_history(text: str) -> list[str]:
     text = text.replace("`\n", " ").replace("\\\n", " ")
     out = []
     for raw in text.splitlines():
+        if _BASH_TS.match(raw.strip()):
+            continue
         c = _norm(_ZSH_EXT.sub("", raw))
         if c:
             out.append(c)
@@ -57,6 +70,8 @@ class HistoryTail:
                 self._pos[p] = size
             except OSError:
                 continue
+            if "zsh" in p.name:
+                data = unmetafy_zsh(data)
             cmds += parse_history(data.decode("utf-8", errors="replace"))
         return cmds
 

@@ -24,6 +24,16 @@ if [ "$(uname -s)" != "Darwin" ]; then
   exit 1
 fi
 
+# Folders macOS protects (Documents / Desktop / Downloads) can't be read by a background process
+# started at login, and iCloud Drive would sync your screenshots to the cloud.
+case "$ROOT" in
+  "$HOME/Documents"*|"$HOME/Desktop"*|"$HOME/Downloads"*|"$HOME/Library/Mobile Documents"*)
+    say "Please move desktop-sense out of $ROOT first, e.g.:"
+    say "    mv \"$ROOT\" ~/desktop-sense && cd ~/desktop-sense && ./install.sh"
+    say "(macOS blocks background apps from reading Documents/Desktop/Downloads, and iCloud would upload your screenshots.)"
+    exit 1 ;;
+esac
+
 # --- 1. Python 3.10+ ---------------------------------------------------------
 PY=""
 for c in python3.13 python3.12 python3.11 python3.10 python3; do
@@ -69,14 +79,15 @@ fi
 if [ "$AUTOSTART" = 1 ]; then
   "$ROOT/.venv/bin/python" "$ROOT/ds.py" autostart on >/dev/null
 fi
-"$ROOT/.venv/bin/python" "$ROOT/ds.py" restart
+"$ROOT/.venv/bin/python" "$ROOT/ds.py" restart || true   # first start can be slow; don't skip the steps below
 
 say ""
 say "Done. One more step - macOS needs your permission to see window titles and take screenshots:"
 say "  System Settings > Privacy & Security > Screen Recording > enable the entry for Python"
 say "  (macOS shows a prompt the first time; if you dismissed it, add it there), then run: ds restart"
+say "  'ds status' tells you if the permission is missing. After 'brew upgrade python' you may need to grant it again."
 say "The first time a Chrome-family browser is in front, macOS also asks whether Python may control it -"
-say "that is how incognito windows are detected. Allow it, or incognito detection falls back to window titles."
+say "that is how incognito windows are detected. Until you allow it, browser windows are title-only (no screenshots)."
 say ""
 say "Try:  ds status    ds now"
 say "Privacy: everything stays in $ROOT/data. Add your own rules in config.json (see README)."
