@@ -7,3 +7,4 @@ winrt-Windows.Globalization>=3.2
 winrt-Windows.Graphics.Imaging>=3.2
 winrt-Windows.Media.Ocr>=3.2
 winrt-Windows.Storage.Streams>=3.2
+comtypes>=1.4

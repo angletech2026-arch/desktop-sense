@@ -421,6 +421,8 @@ def cmd_stream(store: Store, cfg: dict, args) -> int:
                 if typ == "focus":
                     # 在 Claude 分頁之間切換不用通知（Claude 本來就知道）
                     pending = None if ev.get("kind") == "self" else ev
+                elif typ == "screen" and ev.get("private") and pending and pending.get("app") == ev.get("app"):
+                    pending = {**pending, "title": "", "kind": "blocked"}  # 截圖後才判定為私密：標題也不能印
                 elif typ == "alert":
                     key = "|".join(ev.get("lines", [])[:2])
                     if now - seen_alerts.get(key, 0) >= 600:

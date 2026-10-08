@@ -24,6 +24,7 @@ from .ocr import Ocr
 from .privacy import Privacy, normalize_title
 from .research import build_research_prompt
 from .store import Store
+from .uia import IncognitoProbe
 from .win import acquire_mutex, foreground, idle_seconds, set_dpi_aware
 
 MUTEX = "Local\\desktop_sense_daemon_v1"
@@ -72,6 +73,8 @@ class Daemon:
         # 自動搜尋：錯誤出現的時間點、各錯誤/主題上次搜的時間、今天搜了幾次
         self._err_hits: dict[str, list[float]] = {}
         self._win_err_counts: dict[tuple, dict[str, int]] = {}  # 各視窗上一張截圖裡，每個錯誤出現幾次
+        self._incognito = IncognitoProbe(self.log)
+        self._browsers = {a.lower() for a in self.cfg["apps"]["browser"]}
         self._research_pending: set[str] = set()
         self._researched: dict[str, float] = {}
         day_start = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
@@ -215,6 +218,9 @@ class Daemon:
     def _on_foreground(self, fg: dict, now: float) -> None:
         raw = fg["title"]
         kind = self.privacy.classify(fg["app"], raw)
+        # Chrome 系的無痕視窗標題看不出來：問無障礙樹（每個視窗只查一次）
+        if kind == "ok" and fg["app"].lower() in self._browsers and self._incognito.is_private(fg["hwnd"]):
+            kind = "blocked"
         title, norm = self._title_key(raw)  # 標題一律先遮蔽才留（email、金鑰…）
         if kind == "ok" and (fg["app"], norm) in self._sensitive_ctx:
             kind = "blocked"  # 這個視窗之前被 OCR 判定為敏感，回來時直接遮蔽

@@ -638,5 +638,32 @@ class LocalModelTest(unittest.TestCase):
                 self.assertIn("_error", an.analyze("p", None))
 
 
+class IncognitoProbeTest(unittest.TestCase):
+    """Chrome 無痕視窗的標題跟一般視窗一樣：要靠無障礙樹裡的標記判斷。"""
+
+    def test_markers(self):
+        from dsense.uia import MARKERS
+        for yes in ("Example Domain - Google Chrome (無痕模式)", "無痕視窗", "GitHub - Google Chrome (Incognito)",
+                    "Incognito", "新しいタブ - Google Chrome (シークレット)", "Page - Brave (InPrivate)",
+                    "Mozilla Firefox Private Browsing"):
+            self.assertTrue(MARKERS.search(yes), yes)
+        for no in ("Example Domain - Google Chrome", "How Incognito mode works - Google Chrome", "Profile 1",
+                   "user/repo (Private) - Google Chrome", "Incognito mode docs"):
+            self.assertFalse(MARKERS.search(no), no)
+
+    def test_cache_and_fallback(self):
+        from dsense.uia import IncognitoProbe
+        p = IncognitoProbe()
+        calls = []
+        p._init = lambda: True
+        p._scan = lambda h: calls.append(h) or True
+        self.assertTrue(p.is_private(42))
+        self.assertTrue(p.is_private(42))
+        self.assertEqual(calls, [42])                 # 同一個視窗只查一次
+        q = IncognitoProbe()
+        q._broken = True                              # 沒有 comtypes / UIA 壞掉
+        self.assertIsNone(q.is_private(7))            # 回傳 None，呼叫端照標題規則走
+
+
 if __name__ == "__main__":
     unittest.main()
