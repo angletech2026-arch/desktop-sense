@@ -524,7 +524,7 @@ class Daemon:
     def _enqueue_research(self, now: float, kind: str, key: str, text: str, why: str, ctx: str = "") -> bool:
         """排一次自動搜尋；有排進去才回傳 True。冷卻從「成功搜到」才開始算，失敗 30 分鐘後可以再試。"""
         rc = self.cfg["research"]
-        if not rc["enabled"] or not self.analyzer.available() or self._paused_until > now:
+        if not rc["enabled"] or not self.analyzer.research_available() or self._paused_until > now:
             return False
         if key in self._research_pending or now - self._researched.get(key, 0) < rc["cooldown_hours"] * 3600:
             return False
@@ -631,6 +631,7 @@ class Daemon:
             "last_alert": self.last_alert,
             "last_insight_ts": self.last_insight.get("ts") if self.last_insight else None,
             "analyzer": self.analyzer.available(),
+            "analyzer_backend": self.analyzer.describe(),
             "ocr": self.ocr is not None,
             "calls_last_hour": len([t for t in self._call_times if now - t < 3600]),
         }

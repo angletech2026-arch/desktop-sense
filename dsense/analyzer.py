@@ -1,17 +1,25 @@
-"""呼叫本機 claude.exe（headless, -p）把「畫面 + OCR + 最近活動」變成一句摘要 + 幾條建議。
+"""把「畫面 + OCR + 最近活動」變成一句摘要 + 幾條建議。
 
-注意：這會把截圖/OCR 送進 Claude API。所以呼叫前，畫面必須已經通過 privacy 判斷為 ok，
-且 OCR 文字已經過 redact()。醫療/個資/密碼畫面在上游就被擋掉，不會走到這裡。
+後端（analyzer.backend）：
+- claude（預設）：呼叫本機 claude.exe（headless, -p）→ 截圖/OCR 會送進 Claude API（使用者自己的帳號）
+- ollama / openai：本機模型伺服器（Ollama、LM Studio、llama.cpp、vLLM）→ 資料完全不出這台電腦；
+  預設只准連 localhost，要連別台主機得明確設 analyzer.local.allow_remote=true
+
+呼叫前，畫面必須已經通過 privacy 判斷為 ok，且 OCR 文字已經過 redact()。醫療/個資/密碼畫面在上游就被擋掉。
 """
 from __future__ import annotations
 
 import base64
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from PIL import Image
 
@@ -162,11 +170,19 @@ def resolve_claude() -> str | None:
     return str(guess) if guess.exists() else None
 
 
+# 本地模型：預設網址與模型（Ollama 預設 port 11434；LM Studio 預設 1234）
+LOCAL_DEFAULTS = {"ollama": ("http://127.0.0.1:11434", "gemma3:4b"), "openai": ("http://127.0.0.1:1234/v1", "")}
+_LOOPBACK = {"localhost", "127.0.0.1", "::1"}
+_JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
+
+
 class Analyzer:
     def __init__(self, cfg: dict, store, log=print) -> None:
         self.cfg = cfg["analyzer"]
         self.store = store
         self.log = log
+        self.backend = str(self.cfg.get("backend") or "claude").lower()
+        self.local = self.cfg.get("local") if isinstance(self.cfg.get("local"), dict) else {}
         self.claude = self.cfg.get("claude_path") or resolve_claude()
         self._sys_file = store.root / "analyzer_system.txt"
         self._sys_file.write_text(
@@ -190,11 +206,24 @@ class Analyzer:
         return self._flags
 
     def available(self) -> bool:
-        return bool(self.claude and Path(self.claude).exists())
+        if self.backend in LOCAL_DEFAULTS:
+            return self._local_endpoint()[0] is not None
+        return self.research_available()
+
+    def research_available(self) -> bool:
+        """自動搜尋一定要上網，只有 claude 後端才有；本地模型模式維持完全離線。"""
+        return self.backend == "claude" and bool(self.claude and Path(self.claude).exists())
+
+    def describe(self) -> str:
+        if self.backend in LOCAL_DEFAULTS:
+            url, err = self._local_endpoint()
+            return f"{self.backend} {self._local_model()} @ {url}" if url else f"{self.backend} ({err})"
+        return f"claude ({self.claude})" if self.research_available() else L("claude（找不到）", "claude (not found)")
 
     def analyze(self, prompt: str, image_path: Path | None, model: str | None = None) -> dict | None:
         if not self.available():
-            return {"_error": L("找不到 claude 可執行檔", "claude executable not found")}
+            return {"_error": L("分析器無法使用（找不到 claude，或本地模型網址不允許）",
+                                "analyzer unavailable (claude not found, or the local model URL isn't allowed)")}
         model = model or self.cfg.get("model", "haiku")
         content: list[dict] = []
         if image_path and self.cfg.get("send_images", True) and image_path.exists():
@@ -204,14 +233,20 @@ class Analyzer:
             except OSError as e:
                 self.log(L(f"[analyzer] 讀圖失敗 {e}", f"[analyzer] failed to read image: {e}"))
         content.append({"type": "text", "text": prompt})
-        res = self._run(content, model, self._sys_file, SCHEMA, tools="", timeout=float(self.cfg.get("timeout_s", 150)))
+        timeout = float(self.cfg.get("timeout_s", 150))
+        if self.backend in LOCAL_DEFAULTS:
+            res = self._run_local(content, SCHEMA, SYSTEM.format(profile=self.cfg.get("user_profile", "")), timeout)
+            model = f"{self.backend}:{self._local_model()}"
+        else:
+            res = self._run(content, model, self._sys_file, SCHEMA, tools="", timeout=timeout)
         return res if res.get("_error") else self._meta(_clamp(res["_structured"]), res, model)
 
     def research(self, prompt: str, model: str, timeout: float = 240, max_budget_usd: float = 0.5) -> dict:
         """自動搜尋：只送文字（錯誤行 / 主題），不送截圖。子 claude 只能用 WebSearch（在 Anthropic 伺服器端執行）：
         不開 WebFetch，因為它從使用者電腦連線，可能被誘導去打 localhost / 內網再把結果帶出去。"""
-        if not self.available():
-            return {"_error": L("找不到 claude 可執行檔", "claude executable not found")}
+        if not self.research_available():
+            return {"_error": L("自動搜尋需要 claude 後端（本地模型模式不上網）",
+                                "auto-search needs the claude backend (local-model mode stays offline)")}
         res = self._run([{"type": "text", "text": prompt}], model, self._research_sys_file, RESEARCH_SCHEMA,
                         tools="WebSearch", timeout=timeout, max_budget_usd=max_budget_usd)
         if res.get("_error"):
@@ -220,6 +255,77 @@ class Analyzer:
         if not out.get("summary"):
             return {"_error": L("搜尋沒有產生結論", "search returned no summary")}
         return self._meta(out, res, model)
+
+    # ---------------- 本地模型（Ollama / OpenAI 相容伺服器） ----------------
+    def _local_model(self) -> str:
+        return str(self.local.get("model") or LOCAL_DEFAULTS.get(self.backend, ("", ""))[1])
+
+    def _local_endpoint(self) -> tuple[str | None, str]:
+        default_url = LOCAL_DEFAULTS.get(self.backend, ("", ""))[0]
+        url = str(self.local.get("url") or default_url).rstrip("/")
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        if parts.scheme not in ("http", "https") or not host:
+            return None, L(f"本地模型網址不對：{url}", f"invalid local model URL: {url}")
+        if host not in _LOOPBACK and not self.local.get("allow_remote"):
+            return None, L(f"本地模型網址不是這台電腦（{host}）；真的要用遠端主機請設 analyzer.local.allow_remote=true",
+                           f"the local model URL is not on this PC ({host}); set analyzer.local.allow_remote=true "
+                           "if you really want a remote host")
+        return url, ""
+
+    def _http_post(self, url: str, body: dict, timeout: float) -> dict:
+        req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        # 不走系統 proxy：連 localhost 的資料不能被 HTTP_PROXY 之類的設定繞去別的地方
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8", "replace"))
+
+    def _run_local(self, content: list[dict], schema: dict, system: str, timeout: float) -> dict:
+        url, err = self._local_endpoint()
+        if url is None:
+            return {"_error": err}
+        text = "\n".join(c["text"] for c in content if c.get("type") == "text")
+        images = [c["source"]["data"] for c in content if c.get("type") == "image"]
+        system = system + "\n\n" + L("只輸出一個符合下面 JSON Schema 的 JSON 物件，不要任何其他文字：",
+                                     "Reply with exactly one JSON object matching this JSON Schema and nothing else:") \
+            + "\n" + json.dumps(schema, ensure_ascii=False)
+        model = self._local_model()
+        t = time.time()
+        try:
+            if self.backend == "ollama":
+                user = {"role": "user", "content": text}
+                if images:
+                    user["images"] = images
+                data = self._http_post(url + "/api/chat", {
+                    "model": model, "stream": False, "format": schema, "options": {"temperature": 0.2},
+                    "messages": [{"role": "system", "content": system}, user]}, timeout)
+                raw = (data.get("message") or {}).get("content", "")
+            else:
+                parts = [{"type": "text", "text": text}] + [
+                    {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in images]
+                body = {"model": model or "local-model", "temperature": 0.2,
+                        "messages": [{"role": "system", "content": system}, {"role": "user", "content": parts}],
+                        "response_format": {"type": "json_schema", "json_schema": {"name": "desktop_sense", "schema": schema}}}
+                try:
+                    data = self._http_post(url + "/chat/completions", body, timeout)
+                except urllib.error.HTTPError as e:
+                    if e.code != 400:
+                        raise
+                    body.pop("response_format")  # 有些伺服器不支援 json_schema：改靠系統提示要求 JSON
+                    data = self._http_post(url + "/chat/completions", body, timeout)
+                raw = ((data.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            return {"_error": L(f"本地模型呼叫失敗：{e}", f"local model call failed: {e}")}
+        m = _JSON_BLOCK.search(raw or "")
+        try:
+            structured = json.loads(m.group(0)) if m else None
+        except ValueError:
+            structured = None
+        if not isinstance(structured, dict) or not structured:
+            return {"_error": L("本地模型沒有回傳 JSON", "the local model did not return JSON")}
+        return {"_structured": structured, "_result": {"total_cost_usd": 0.0, "usage": {}},
+                "_elapsed": round(time.time() - t, 1)}
 
     @staticmethod
     def _meta(structured: dict, res: dict, model: str) -> dict:

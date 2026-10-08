@@ -22,7 +22,7 @@ desktop-sense is a small local daemon for Windows that tells Claude Code (and Co
 
 ## Privacy: 100% local
 
-- **No server, no account, no telemetry.** There is no network code in desktop-sense. Screenshots, OCR text, the timeline and analyses live in `data/` on your PC.
+- **No server, no account, no telemetry.** desktop-sense itself never talks to the internet — the only connection it can open on its own is to a local model server on your own PC, if you turn on [fully local mode](#fully-local-mode-ollama--lm-studio) (localhost only unless you explicitly allow another host). Screenshots, OCR text, the timeline and analyses live in `data/` on your PC.
 - **The only thing that leaves your machine** is what *your own* AI assistant sees, sent with *your own* account — exactly as if you had pasted it yourself:
   - the hook block goes into your own conversations;
   - the background analyzer sends the latest screenshot and de-identified OCR text of an allowed window through your `claude` CLI;
@@ -103,11 +103,26 @@ Put only what you want to change in `config.json` (created on first run, never c
 
 Run `ds config` to see the effective settings. All defaults are in [`dsense/config.py`](dsense/config.py).
 
+## Fully local mode (Ollama / LM Studio)
+
+Don't want screenshots to leave your PC at all? Point the analyzer at a local vision model:
+
+1. Install [Ollama](https://ollama.com) and pull a vision model: `ollama pull gemma3:4b` (about 3 GB; `qwen2.5vl:7b` reads screens better if you have 8 GB+ of VRAM).
+2. In `config.json`:
+   ```json
+   { "analyzer": { "backend": "ollama", "local": { "model": "gemma3:4b" } } }
+   ```
+3. `ds restart`, then check `ds status`.
+
+LM Studio, llama.cpp and vLLM work too with `"backend": "openai"` (any OpenAI-compatible server; default `http://127.0.0.1:1234/v1`). In local mode analysis is free and nothing leaves your machine; auto-research needs the web, so it switches itself off. Error detection and OCR are local in every mode.
+
 ## Cost
 
 - **Background analysis:** Haiku, about $0.002 per run; every 20 min while you're active plus on errors, capped at 12/hour — typically a few cents a day.
 - **Auto-research:** Sonnet + web search, only when an error repeats, when the analyzer thinks you are stuck, or when you start something new — capped at 8/day and $0.50 per search.
 - With a Claude subscription these count against your plan's usage instead of being billed.
+- In fully local mode: $0.
+- A full day of normal use on our machine: 15 analyses + 2 searches ≈ US$0.19.
 
 ## How is this different from…
 

@@ -159,6 +159,12 @@ DEFAULTS: dict = {
     },
     "analyzer": {
         "enabled": True,
+        # 分析用的模型：claude（預設，走你自己的 claude 指令）｜ollama｜openai（OpenAI 相容的本機伺服器：LM Studio、
+        # llama.cpp、vLLM）。本地模型模式下截圖與文字完全不離開這台電腦，自動上網搜尋也會自動關閉。
+        "backend": "claude",
+        # 本地模型：url 空白 = 預設（Ollama http://127.0.0.1:11434、LM Studio http://127.0.0.1:1234/v1）；
+        # model 空白 = Ollama 用 gemma3:4b。只准連 localhost，除非 allow_remote=true。
+        "local": {"url": "", "model": "", "allow_remote": False},
         "model": "haiku",
         "deep_model": "sonnet",
         "periodic_minutes": 20,

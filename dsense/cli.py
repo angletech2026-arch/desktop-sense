@@ -144,8 +144,9 @@ def cmd_status(store: Store, cfg: dict, args) -> int:
         return 0
     age = time.time() - st.get("ts", 0)
     print(L(f"state 更新：{st.get('t')}（{int(age)}s 前）", f"state updated: {st.get('t')} ({int(age)}s ago)"))
-    print(L(f"分析器：{'可用' if st.get('analyzer') else '找不到 claude'}　OCR：{'開' if st.get('ocr') else '關'}",
-            f"analyzer: {'available' if st.get('analyzer') else 'claude not found'}   "
+    backend = st.get("analyzer_backend") or "claude"
+    print(L(f"分析器：{'可用' if st.get('analyzer') else '無法使用'}（{backend}）　OCR：{'開' if st.get('ocr') else '關'}",
+            f"analyzer: {'available' if st.get('analyzer') else 'unavailable'} ({backend})   "
             f"OCR: {'on' if st.get('ocr') else 'off'}"))
     calls, cap = st.get('calls_last_hour', 0), cfg['analyzer']['max_calls_per_hour']
     print(L(f"本小時分析次數：{calls} / {cap}", f"analyses in the last hour: {calls} / {cap}"))
@@ -219,7 +220,7 @@ def cmd_analyze(store: Store, cfg: dict, args) -> int:
     deep = "--deep" in args
     analyzer = Analyzer(cfg, store)
     if not analyzer.available():
-        print(L("找不到 claude 可執行檔，無法分析。", "claude executable not found; can't analyze."))
+        print(L(f"分析器無法使用：{analyzer.describe()}", f"analyzer unavailable: {analyzer.describe()}"))
         return 1
     now = time.time()
     events = store.read_window(now - cfg["analyzer"]["periodic_minutes"] * 60, now)
@@ -503,8 +504,9 @@ def cmd_research(store: Store, cfg: dict, args) -> int:
         print(L("內容命中隱私規則，不送出搜尋。", "That text matches a privacy rule; not sending it."))
         return 1
     analyzer = Analyzer(cfg, store)
-    if not analyzer.available():
-        print(L("找不到 claude 可執行檔，無法搜尋。", "claude executable not found; can't search."))
+    if not analyzer.research_available():
+        print(L("自動搜尋需要 claude 後端（找不到 claude，或目前設定為本地模型模式，不上網）。",
+                "auto-search needs the claude backend (claude not found, or you're in local-model mode, which stays offline)."))
         return 1
     rc = cfg["research"]
     print(L("搜尋中（約 30–90 秒）…", "Searching (about 30–90 s)…"), flush=True)
@@ -615,7 +617,11 @@ def cmd_config(store: Store, cfg: dict, args) -> int:
     a, cap, pv = cfg['analyzer'], cfg['capture'], cfg['privacy']
     print(L(f"設定檔：{CONFIG_PATH}", f"config file: {CONFIG_PATH}"))
     print(L(f"資料夾：{store.root}", f"data dir: {store.root}"))
-    print(L(f"分析模型：{a['model']}（錯誤時 {a['deep_model']}）", f"analyzer model: {a['model']} ({a['deep_model']} on errors)"))
+    if a.get("backend", "claude") == "claude":
+        print(L(f"分析模型：{a['model']}（錯誤時 {a['deep_model']}）", f"analyzer model: {a['model']} ({a['deep_model']} on errors)"))
+    else:
+        from .analyzer import Analyzer
+        print(L(f"分析模型（本地）：{Analyzer(cfg, store).describe()}", f"analyzer model (local): {Analyzer(cfg, store).describe()}"))
     print(L(f"定期分析：每 {a['periodic_minutes']} 分；每小時上限 {a['max_calls_per_hour']} 次",
             f"periodic analysis: every {a['periodic_minutes']} min; at most {a['max_calls_per_hour']} per hour"))
     ocr_lang = cap['ocr_language'] or L("自動（Windows 使用者語言）", "auto (Windows user language)")

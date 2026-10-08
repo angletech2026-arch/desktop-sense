@@ -500,7 +500,7 @@ class SecurityFixTest(unittest.TestCase):
 
     def test_research_cooldown_starts_only_on_success(self):
         d = self._daemon()
-        d.analyzer = type("A", (), {"available": lambda self: True,
+        d.analyzer = type("A", (), {"available": lambda self: True, "research_available": lambda self: True,
                                     "research": lambda self, *a: {"_error": "budget exceeded"}})()
         d.privacy = PV
         d.store = type("S", (), {"append_research": lambda self, r: None})()
@@ -553,6 +553,89 @@ class SecurityFixTest(unittest.TestCase):
         cmds = [e["cmd"] for e in out if e["type"] == "cmd"]
         self.assertEqual(len(cmds), 1)               # 含 incognito 的指令整筆拿掉
         self.assertNotIn("abc12345xyz", cmds[0])     # 祕密被遮
+
+
+class LocalModelTest(unittest.TestCase):
+    """本地模型模式：Ollama / OpenAI 相容（LM Studio）。資料不能離開這台電腦。"""
+
+    def _an(self, d, backend, **local):
+        from dsense.analyzer import Analyzer
+        cfg = json.loads(json.dumps(DEFAULTS))["analyzer"]
+        cfg.update({"backend": backend, "local": {"url": "", "model": "", "allow_remote": False, **local}})
+        return Analyzer({"analyzer": cfg}, Store(Path(d)))
+
+    def test_ollama_request_and_parse(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            an = self._an(d, "ollama")
+            self.assertTrue(an.available())
+            self.assertFalse(an.research_available())          # 本地模式不上網
+            reply = {"message": {"content": '```json\n{"doing": "debugging a build", "state": "error", "suggestions": ["fix it"]}\n```'}}
+            img = Path(d) / "s.jpg"
+            from PIL import Image
+            Image.new("RGB", (40, 20), "white").save(img)
+            with mock.patch.object(an, "_http_post", return_value=reply) as post:
+                res = an.analyze("prompt text", img)
+            url, body, _timeout = post.call_args[0]
+            self.assertEqual(url, "http://127.0.0.1:11434/api/chat")
+            self.assertEqual(body["model"], "gemma3:4b")
+            self.assertTrue(body["messages"][1]["images"])       # 截圖送給本機模型
+            self.assertIn("doing", json.dumps(body["format"]))  # JSON schema 結構化輸出
+            self.assertEqual(res["doing"], "debugging a build")
+            self.assertEqual(res["_cost"], 0.0)
+            self.assertIn("auto-search needs the claude backend", an.research("kind=error", "sonnet")["_error"]
+                          .replace("自動搜尋需要 claude 後端（本地模型模式不上網）", "auto-search needs the claude backend"))
+
+    def test_openai_compatible_with_fallback(self):
+        import io
+        import urllib.error
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            an = self._an(d, "openai", model="qwen2.5-vl-7b")
+            ok = {"choices": [{"message": {"content": '{"doing": "reading docs", "state": "ok", "suggestions": []}'}}]}
+            calls = []
+
+            def fake(url, body, timeout):
+                calls.append((url, dict(body)))
+                if "response_format" in body:   # 第一次：伺服器不支援 json_schema
+                    raise urllib.error.HTTPError(url, 400, "bad", {}, io.BytesIO(b""))
+                return ok
+            with mock.patch.object(an, "_http_post", side_effect=fake):
+                res = an.analyze("prompt", None)
+            self.assertEqual(calls[0][0], "http://127.0.0.1:1234/v1/chat/completions")
+            self.assertNotIn("response_format", calls[1][1])  # 退回只靠系統提示
+            self.assertEqual(res["doing"], "reading docs")
+            self.assertEqual(res["_model"], "openai:qwen2.5-vl-7b")
+
+    def test_local_only_unless_explicitly_allowed(self):
+        with tempfile.TemporaryDirectory() as d:
+            an = self._an(d, "ollama", url="http://192.168.1.50:11434")
+            self.assertFalse(an.available())
+            self.assertIn("_error", an.analyze("p", None))
+            an2 = self._an(d, "ollama", url="http://192.168.1.50:11434", allow_remote=True)
+            self.assertTrue(an2.available())
+
+    def test_no_system_proxy_for_local_calls(self):
+        from unittest import mock
+        import dsense.analyzer as A
+        with tempfile.TemporaryDirectory() as d:
+            an = self._an(d, "ollama")
+            fake_resp = mock.MagicMock()
+            fake_resp.__enter__.return_value.read.return_value = b'{"message": {"content": "{}"}}'
+            opener = mock.MagicMock()
+            opener.open.return_value = fake_resp
+            with mock.patch.object(A.urllib.request, "build_opener", return_value=opener) as bo, \
+                    mock.patch.dict("os.environ", {"HTTP_PROXY": "http://evil:8080"}):
+                an._http_post("http://127.0.0.1:11434/api/chat", {}, 5)
+            handler = bo.call_args[0][0]
+            self.assertEqual(handler.proxies, {})              # 不吃環境變數的 proxy
+
+    def test_bad_json_is_an_error(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            an = self._an(d, "ollama")
+            with mock.patch.object(an, "_http_post", return_value={"message": {"content": "sorry, I can't"}}):
+                self.assertIn("_error", an.analyze("p", None))
 
 
 if __name__ == "__main__":
