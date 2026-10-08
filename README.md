@@ -105,6 +105,8 @@ Run `ds config` to see the effective settings. All defaults are in [`dsense/conf
 
 ## Fully local mode (Ollama / LM Studio)
 
+> **Beta:** built against the official Ollama and OpenAI-compatible APIs and covered by tests, but not yet field-tested on many setups. Issues and reports welcome.
+
 Don't want screenshots to leave your PC at all? Point the analyzer at a local vision model:
 
 1. Install [Ollama](https://ollama.com) and pull a vision model: `ollama pull gemma3:4b` (about 3 GB; `qwen2.5vl:7b` reads screens better if you have 8 GB+ of VRAM).

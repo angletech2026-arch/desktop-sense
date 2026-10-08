@@ -94,6 +94,8 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 ## 完全本機模式（Ollama / LM Studio）
 
+> **Beta**：照 Ollama 與 OpenAI 相容 API 的官方格式實作、有測試覆蓋，但還沒在很多環境實際跑過，歡迎回報問題。
+
 連截圖都不想離開電腦？把 AI 分析改用本地的視覺模型：
 
 1. 安裝 [Ollama](https://ollama.com)，下載一個看得懂圖的模型：`ollama pull gemma3:4b`（約 3 GB；顯卡 8 GB 以上可用 `qwen2.5vl:7b`，看螢幕更準）
