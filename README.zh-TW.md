@@ -15,7 +15,7 @@ desktop-sense 是一個在 Windows（macOS 測試版）背景執行的小程式�
 - **「看著我」模式**：`ds stream` 搭配 Claude Code 的 Monitor，事件一發生 AI 就能反應。
 - **`/desk` skill 與 `ds` 指令**：隨時查時間線、截圖、OCR 文字、分析結果。
 
-## 隱私：100% 本機
+## 隱私：本機優先
 
 - **沒有伺服器、不用帳號、不回傳任何使用數據。** desktop-sense 自己從不連上網際網路；它唯一可能自己發出的連線，是你開了「完全本機模式」時連到你自己電腦上的本地模型（預設只准連本機）。截圖、OCR、時間線、分析結果都只存在你電腦的 `data/` 資料夾。
 - **唯一會離開電腦的**，是你自己的 AI 助手看到的內容，用你自己的帳號送出，跟你自己貼截圖給它一樣：
@@ -112,7 +112,7 @@ Mac 版用 Quartz 讀視窗、Apple 內建的 Vision 做文字辨識，App 用 b
 
 > 已實測：Ollama 0.40 + `gemma3:4b`（RTX 3060 Ti），Ollama 原生 API 與 OpenAI 相容 API 兩種接法都測過（模型載入後一次分析約 10 秒，第一次約 1 分鐘）。LM Studio／llama.cpp／vLLM 用同一種 OpenAI 相容格式，但還沒直接測過，歡迎回報。小模型的摘要比較粗略，`qwen2.5vl:7b` 以上看螢幕明顯更準。
 
-連截圖都不想離開電腦？把 AI 分析改用本地的視覺模型：
+不想讓 desktop-sense 把截圖送去任何地方？把 AI 分析改用本地的視覺模型：
 
 1. 安裝 [Ollama](https://ollama.com)，下載一個看得懂圖的模型：`ollama pull gemma3:4b`（約 3 GB；顯卡 8 GB 以上可用 `qwen2.5vl:7b`，看螢幕更準）
 2. `config.json` 加上：
@@ -121,7 +121,7 @@ Mac 版用 Quartz 讀視窗、Apple 內建的 Vision 做文字辨識，App 用 b
    ```
 3. `ds restart`，再用 `ds status` 確認
 
-LM Studio、llama.cpp、vLLM 用 `"backend": "openai"`（OpenAI 相容伺服器，預設 `http://127.0.0.1:1234/v1`）。本機模式下分析不花錢、資料完全不出電腦；自動上網搜尋因為一定要連網，會自動關閉。錯誤偵測和文字辨識在任何模式都是本機跑。
+LM Studio、llama.cpp、vLLM 用 `"backend": "openai"`（OpenAI 相容伺服器，預設 `http://127.0.0.1:1234/v1`）。本機模式下 desktop-sense 自己的分析不花錢、不離開電腦，自動上網搜尋（一定要連網）也會自動關閉。你的 AI 助手照常會收到每則訊息附的那段狀態；如果你叫它打開截圖，那張圖就跟你分享的任何檔案一樣會送到它的服務商。錯誤偵測和文字辨識在任何模式都是本機跑。
 
 ## 費用
 

@@ -20,7 +20,7 @@ desktop-sense is a small local daemon for Windows (macOS in beta) that tells Cla
 - **"Watch me" mode.** `ds stream` + Claude Code's Monitor tool = your assistant reacts to events as they happen.
 - **`/desk` skill + `ds` CLI** for timelines, screenshots, OCR text and analyses on demand.
 
-## Privacy: 100% local
+## Privacy: local-first
 
 - **No server, no account, no telemetry.** desktop-sense itself never talks to the internet — the only connection it can open on its own is to a local model server on your own PC, if you turn on [fully local mode](#fully-local-mode-ollama--lm-studio) (localhost only unless you explicitly allow another host). Screenshots, OCR text, the timeline and analyses live in `data/` on your PC.
 - **The only thing that leaves your machine** is what *your own* AI assistant sees, sent with *your own* account — exactly as if you had pasted it yourself:
@@ -123,7 +123,7 @@ Run `ds config` to see the effective settings. All defaults are in [`dsense/conf
 
 > Tested with Ollama 0.40 + `gemma3:4b` on an RTX 3060 Ti, through both Ollama's native API and its OpenAI-compatible API (~10 s per analysis once the model is loaded; the first call takes about a minute). LM Studio / llama.cpp / vLLM use the same OpenAI-compatible format but haven't been tested directly yet — reports welcome. Small models give rougher summaries; `qwen2.5vl:7b` or larger reads screens noticeably better.
 
-Don't want screenshots to leave your PC at all? Point the analyzer at a local vision model:
+Don't want desktop-sense to send screenshots anywhere? Point the analyzer at a local vision model:
 
 1. Install [Ollama](https://ollama.com) and pull a vision model: `ollama pull gemma3:4b` (about 3 GB; `qwen2.5vl:7b` reads screens better if you have 8 GB+ of VRAM).
 2. In `config.json`:
@@ -132,7 +132,7 @@ Don't want screenshots to leave your PC at all? Point the analyzer at a local vi
    ```
 3. `ds restart`, then check `ds status`.
 
-LM Studio, llama.cpp and vLLM work too with `"backend": "openai"` (any OpenAI-compatible server; default `http://127.0.0.1:1234/v1`). In local mode analysis is free and nothing leaves your machine; auto-research needs the web, so it switches itself off. Error detection and OCR are local in every mode.
+LM Studio, llama.cpp and vLLM work too with `"backend": "openai"` (any OpenAI-compatible server; default `http://127.0.0.1:1234/v1`). In local mode desktop-sense's own analysis is free and never leaves your machine, and auto-research (which needs the web) switches itself off. Your coding assistant still receives the short context block as usual — and if you ask it to open a screenshot, that image goes to its provider like any file you share. Error detection and OCR are local in every mode.
 
 ## Cost
 
