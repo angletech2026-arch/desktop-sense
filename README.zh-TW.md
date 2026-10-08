@@ -2,9 +2,9 @@
 
 **讓你的 AI 寫程式助手直接看得到你在做什麼。**
 
-desktop-sense 是一個在 Windows 背景執行的小程式。你每傳一則訊息給 Claude Code（或 Codex CLI、Gemini CLI），它就自動附上「你現在在哪個視窗、最近 20 分鐘做了什麼、畫面上有什麼錯誤」。不用再貼截圖、複製錯誤訊息，也不用解釋「我現在在瀏覽器看部署 log」。
+desktop-sense 是一個在 Windows（macOS 測試版）背景執行的小程式。你每傳一則訊息給 Claude Code（或 Codex CLI、Gemini CLI），它就自動附上「你現在在哪個視窗、最近 20 分鐘做了什麼、畫面上有什麼錯誤」。不用再貼截圖、複製錯誤訊息，也不用解釋「我現在在瀏覽器看部署 log」。
 
-[English](README.md) · [繁體中文](README.zh-TW.md) · MIT 授權 · Windows 10/11
+[English](README.md) · [繁體中文](README.zh-TW.md) · MIT 授權 · Windows 10/11 · macOS 12 以上（測試版）
 
 ## 功能
 
@@ -43,6 +43,8 @@ desktop-sense 是一個在 Windows 背景執行的小程式。你每傳一則訊
 
 ## 安裝
 
+### Windows
+
 需要：Windows 10/11、Python 3.10 以上（`winget install Python.Python.3.12`）、Claude Code／Codex CLI／Gemini CLI 其中之一。
 
 ```powershell
@@ -52,6 +54,20 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 安裝程式會建立虛擬環境、把 `ds` 加進 PATH、自動接上找到的 AI 工具（先備份設定檔，只動自己那一筆 hook）、設定開機自動啟動並立即啟動。裝完開一個新的終端機。
+
+### macOS（測試版）
+
+需要：macOS 12 以上、Python 3.10 以上（`brew install python`）、Claude Code／Codex CLI／Gemini CLI 其中之一。
+
+```bash
+git clone https://github.com/angletech2026-arch/desktop-sense
+cd desktop-sense
+./install.sh
+```
+
+裝好後到「系統設定 → 隱私權與安全性 → 螢幕錄製」把 Python 打開，再執行 `ds restart`。沒開的話只能知道你在用哪個 App，看不到視窗標題、也不能截圖。第一次切到 Chrome 系瀏覽器時，macOS 會問 Python 能不能控制它，這是用來判斷無痕視窗的，請允許。
+
+Mac 版用 Quartz 讀視窗、Apple 內建的 Vision 做文字辨識，App 用 bundle id（例：`com.google.Chrome`）辨識，換系統語言規則也不會失效。Mac 版有在 macOS 上跑自動測試，但實際用過的人還不多，有問題請開 issue。已知限制：Safari 的私密視窗沒辦法從外部判斷，有在用的話請把 `com.apple.Safari` 加進 `privacy.no_capture_apps`。
 
 接著直接問 AI：
 
@@ -117,16 +133,21 @@ LM Studio、llama.cpp、vLLM 用 `"backend": "openai"`（OpenAI 相容伺服器�
 
 ## 支援哪些語言？
 
-- **任何語言的 Windows 都能用**，AI 也看得懂任何語言的視窗標題與畫面文字。
+- **任何語言的系統都能用**，AI 也看得懂任何語言的視窗標題與畫面文字。
 - **介面**（指令輸出、通知、分析）：繁體中文與英文，依 Windows 語言自動選（`"language": "zh"` / `"en"` 可強制）。
-- **OCR**：你的 Windows 有裝的 OCR 語言都行（設定 → 時間與語言 → 語言；約 25 種，含中、英、日、韓與多數歐洲語言），可用 `capture.ocr_language` 指定。
+- **OCR**：Windows 用系統有裝的 OCR 語言（設定 → 時間與語言 → 語言；約 25 種，含中、英、日、韓與多數歐洲語言）；macOS 用內建的 Vision（中、英、日、韓與主要歐洲語言）。可用 `capture.ocr_language` 指定。
 - **內建隱私關鍵字**：繁中、簡中、英、日、韓、西、法、德、葡文；其他語言可在 `config.json` 自己加。
 
 ## 移除
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File uninstall.ps1          # 保留資料
+powershell -ExecutionPolicy Bypass -File uninstall.ps1          # Windows，保留資料
 powershell -ExecutionPolicy Bypass -File uninstall.ps1 -Purge   # 連資料、設定、.venv 一起刪
+```
+
+```bash
+./uninstall.sh            # macOS，保留資料
+./uninstall.sh --purge    # 連資料、設定、.venv 一起刪
 ```
 
 ## 授權

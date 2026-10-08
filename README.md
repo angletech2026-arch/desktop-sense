@@ -2,12 +2,12 @@
 
 **Your AI coding assistant can finally see what you're doing.**
 
-desktop-sense is a small local daemon for Windows that tells Claude Code (and Codex CLI / Gemini CLI) what's on your screen — automatically, on every message. No more pasting screenshots, copying error text, or explaining "I'm in the browser looking at the deploy log".
+desktop-sense is a small local daemon for Windows (macOS in beta) that tells Claude Code (and Codex CLI / Gemini CLI) what's on your screen — automatically, on every message. No more pasting screenshots, copying error text, or explaining "I'm in the browser looking at the deploy log".
 
 > You: *"why is this failing?"*
 > Claude: *"Your `npm run build` in the terminal fails with `Type error: Property 'user' does not exist on type 'Session'` (app/page.tsx:42). desktop-sense already found the matching GitHub issue — the fix is …"*
 
-[English](README.md) · [繁體中文](README.zh-TW.md) · MIT · Windows 10/11
+[English](README.md) · [繁體中文](README.zh-TW.md) · MIT · Windows 10/11 · macOS 12+ (beta)
 
 ---
 
@@ -48,6 +48,8 @@ The background analyzer and auto-research run through the `claude` CLI (`claude 
 
 ## Install
 
+### Windows
+
 Requirements: Windows 10/11, Python 3.10+ (`winget install Python.Python.3.12`), and Claude Code / Codex CLI / Gemini CLI.
 
 ```powershell
@@ -57,6 +59,20 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 The installer creates a virtual environment, puts `ds` on your PATH, connects every AI tool it finds (backing up their settings first and touching only its own hook entry), enables start-at-login and starts the daemon. If you cloned outside your user folder (e.g. `D:\dev`), it also restricts the folder to your account, since drive-root folders are writable by every local user. Open a new terminal afterwards.
+
+### macOS (beta)
+
+Requirements: macOS 12+, Python 3.10+ (`brew install python`), and Claude Code / Codex CLI / Gemini CLI.
+
+```bash
+git clone https://github.com/angletech2026-arch/desktop-sense
+cd desktop-sense
+./install.sh
+```
+
+Then allow **Screen Recording** for Python (System Settings → Privacy & Security → Screen Recording) and run `ds restart`. Without it, desktop-sense still tracks which app you're in, but can't read window titles or take screenshots. The first time a Chrome-family browser is in front, macOS also asks whether Python may control it — that's how incognito windows are detected.
+
+On macOS, windows are read with Quartz, text with Apple's built-in Vision OCR, and apps are identified by bundle id (e.g. `com.google.Chrome`), so rules don't break when your system language changes. The macOS version is covered by automated tests on macOS but hasn't been run by many people yet — please [open an issue](https://github.com/angletech2026-arch/desktop-sense/issues) if something's off. Known gap: Safari private windows can't be detected from outside the app; if you use them, add `com.apple.Safari` to `privacy.no_capture_apps`.
 
 Then just talk to your assistant:
 
@@ -134,19 +150,24 @@ LM Studio, llama.cpp and vLLM work too with `"backend": "openai"` (any OpenAI-co
 ## Uninstall
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File uninstall.ps1          # keeps your data
+powershell -ExecutionPolicy Bypass -File uninstall.ps1          # Windows, keeps your data
 powershell -ExecutionPolicy Bypass -File uninstall.ps1 -Purge   # also deletes data, config and .venv
+```
+
+```bash
+./uninstall.sh            # macOS, keeps your data
+./uninstall.sh --purge    # also deletes data, config and .venv
 ```
 
 ## FAQ
 
-**macOS / Linux?** Not yet — capture uses Win32 `PrintWindow` and the built-in Windows OCR engine.
+**Linux?** Not yet. Windows is stable, macOS is in beta.
 
 **Does it slow my PC down?** It polls the foreground window once a second, only captures when the window content actually changes, and runs OCR locally. On our machine it averages about 3% of a single CPU core and ~80 MB of RAM.
 
-**Which languages does it support?** It runs on Windows in any language, and your assistant understands window titles and screen text in any language.
+**Which languages does it support?** It runs on Windows and macOS in any system language, and your assistant understands window titles and screen text in any language.
 - **Interface** (CLI, notifications, analyses): English and Traditional Chinese, picked from your Windows language (override with `"language": "en"` / `"zh"`).
-- **OCR:** any language you have a Windows OCR pack for (Settings → Time & language → Language — about 25 languages including English, Chinese, Japanese, Korean and most European languages). Set `capture.ocr_language` (e.g. `en-US`, `ja`, `de-DE`) to pick one.
+- **OCR:** on Windows, any language you have a Windows OCR pack for (Settings → Time & language → Language — about 25 languages including English, Chinese, Japanese, Korean and most European languages); on macOS, Apple Vision (English, Chinese, Japanese, Korean and the major European languages). Set `capture.ocr_language` (e.g. `en-US`, `ja`, `de-DE`) to pick one.
 - **Built-in privacy keywords:** English, Traditional & Simplified Chinese, Japanese, Korean, Spanish, French, German and Portuguese. For other languages, add your own terms in `config.json`.
 
 ## License

@@ -46,7 +46,7 @@ class IncognitoProbe:
             self.log(f"UI Automation unavailable; incognito detection falls back to window titles: {e!r}")
             return False
 
-    def is_private(self, hwnd: int) -> bool | None:
+    def is_private(self, hwnd: int, app: str = "") -> bool | None:
         now = time.time()
         hit = self._cache.get(hwnd)
         if hit and now - hit[0] < self.ttl_s:

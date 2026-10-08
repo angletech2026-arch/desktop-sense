@@ -351,7 +351,7 @@ class ReleaseTest(unittest.TestCase):
             self.assertTrue(list((home / ".claude").glob("settings.json.bak-desktop-sense-*")))  # 改之前有備份
             cx = json.loads((home / ".codex" / "hooks.json").read_text(encoding="utf-8"))
             ccmd = cx["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
-            self.assertTrue(ccmd.endswith("ds.cmd hook") and I.is_ours(ccmd), ccmd)
+            self.assertTrue(ccmd.rstrip('"').endswith("hook") and I.is_ours(ccmd), ccmd)
             I.setup(home)  # 再跑一次：不會重複加
             cs = json.loads((home / ".claude" / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(sum(I.is_ours(h["command"]) for g in cs["hooks"]["UserPromptSubmit"] for h in g["hooks"]), 1)
@@ -663,6 +663,75 @@ class IncognitoProbeTest(unittest.TestCase):
         q = IncognitoProbe()
         q._broken = True                              # 沒有 comtypes / UIA 壞掉
         self.assertIsNone(q.is_private(7))            # 回傳 None，呼叫端照標題規則走
+
+
+class MacLogicTest(unittest.TestCase):
+    """macOS 版的純邏輯（不需要 Apple 框架，在 Windows 上也能跑；真的 macOS 行為在 tests/mac_smoke.py）。"""
+
+    def test_pick_front_window(self):
+        from dsense.mac import bounds_to_rect, pick_front_window
+        wins = [
+            {"kCGWindowOwnerPID": 9, "kCGWindowLayer": 0, "kCGWindowNumber": 1,
+             "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 800, "Height": 600}},
+            {"kCGWindowOwnerPID": 5, "kCGWindowLayer": 25, "kCGWindowNumber": 2,
+             "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 800, "Height": 30}},
+            {"kCGWindowOwnerPID": 5, "kCGWindowLayer": 0, "kCGWindowNumber": 3,
+             "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 20, "Height": 20}},
+            {"kCGWindowOwnerPID": 5, "kCGWindowLayer": 0, "kCGWindowNumber": 4,
+             "kCGWindowBounds": {"X": 10, "Y": 20, "Width": 900, "Height": 700}},
+        ]
+        self.assertEqual(pick_front_window(wins, 5)["kCGWindowNumber"], 4)  # 跳過選單列(layer 25)、太小的視窗
+        self.assertIsNone(pick_front_window(wins, 77))
+        self.assertEqual(bounds_to_rect({"X": 10, "Y": 20, "Width": 900, "Height": 700}), (10, 20, 910, 720))
+        self.assertIsNone(bounds_to_rect({"X": 0, "Y": 0, "Width": 10, "Height": 700}))
+
+    def test_applescript_and_chromium_map(self):
+        from dsense.mac import CHROMIUM_APPS, applescript_quote, mode_script
+        self.assertEqual(applescript_quote('say "hi" \\ bye\nnext'), '"say \\"hi\\" \\\\ bye next"')
+        self.assertEqual(mode_script("Google Chrome"), 'tell application "Google Chrome" to get mode of front window')
+        self.assertEqual(CHROMIUM_APPS["com.google.chrome"], "Google Chrome")
+
+    def test_vision_languages(self):
+        from dsense.ocr import vision_languages
+        self.assertEqual(vision_languages(""), [])
+        self.assertEqual(vision_languages("zh-Hant-TW"), ["zh-Hant", "en-US"])
+        self.assertEqual(vision_languages("zh-CN"), ["zh-Hans", "en-US"])
+        self.assertEqual(vision_languages("ja"), ["ja-JP", "en-US"])
+        self.assertEqual(vision_languages("en-US"), ["en-US"])
+
+    def test_shell_histories(self):
+        from dsense.history import parse_history
+        zsh = ": 1696000000:0;npm run build\n: 1696000005:0;git commit -m x \\\n  --amend\n"
+        self.assertEqual(parse_history(zsh), ["npm run build", "git commit -m x --amend"])
+        self.assertEqual(parse_history("ls -la\npwd\n"), ["ls -la", "pwd"])
+        self.assertEqual(parse_history("Get-ChildItem `\n -Recurse\n"), ["Get-ChildItem -Recurse"])
+
+    def test_launch_agent_plist(self):
+        import plistlib
+        from dsense.cli import LAUNCH_LABEL, launch_agent_plist
+        d = plistlib.loads(launch_agent_plist("/x/.venv/bin/python", "/x/ds.py", "/x/data/launchd.log",
+                                              "/opt/homebrew/bin:/usr/bin"))
+        self.assertEqual(d["Label"], LAUNCH_LABEL)
+        self.assertEqual(d["ProgramArguments"], ["/x/.venv/bin/python", "/x/ds.py", "daemon"])
+        self.assertTrue(d["RunAtLoad"])
+        self.assertIn("/opt/homebrew/bin", d["EnvironmentVariables"]["PATH"])  # daemon 才找得到 claude
+
+    def test_posix_hook_command(self):
+        from unittest import mock
+        from dsense import integrations as I
+        with mock.patch.object(I.os, "name", "posix"):
+            cmd = I.shim_command()
+        self.assertTrue(cmd.startswith('"') and cmd.replace("\\", "/").endswith('/bin/ds" hook'), cmd)
+        self.assertTrue(I.is_ours(cmd))
+
+    def test_mac_apps_classified(self):
+        self.assertEqual(PV.classify("com.1password.1password", "1Password"), "blocked")
+        self.assertEqual(PV.classify("com.apple.keychainaccess", "Keychain Access"), "blocked")
+        self.assertEqual(PV.classify("com.tinyspeck.slackmacgap", "general - Slack"), "nocap")
+        self.assertEqual(PV.classify("com.apple.MobileSMS", "Messages"), "nocap")
+        self.assertEqual(PV.classify("com.apple.Terminal", "✳ Claude Code — node"), "self")
+        self.assertEqual(PV.classify("com.anthropic.claudefordesktop", "Claude"), "self")
+        self.assertEqual(PV.classify("com.google.Chrome", "GitHub"), "ok")
 
 
 if __name__ == "__main__":

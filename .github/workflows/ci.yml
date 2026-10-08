@@ -1,0 +1,29 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: macOS smoke test (Vision OCR, window list, locks, CLI)
+        if: runner.os == 'macOS'
+        run: python tests/mac_smoke.py
+      - name: Shell script syntax
+        if: runner.os == 'macOS'
+        run: bash -n install.sh && bash -n uninstall.sh && bash -n bin/ds

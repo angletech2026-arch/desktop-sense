@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
-# Git Bash / MSYS launcher for desktop-sense (same as ds.cmd)
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-exec "$DIR/.venv/Scripts/python.exe" "$DIR/ds.py" "$@"
+# desktop-sense launcher for macOS / Linux / Git Bash (same as ds.cmd on Windows).
+# Follows symlinks by hand (install.sh links ~/.local/bin/ds here; older macOS has no `readlink -f`).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  TARGET="$(readlink "$SOURCE")"
+  case "$TARGET" in
+    /*) SOURCE="$TARGET" ;;
+    *) SOURCE="$(dirname "$SOURCE")/$TARGET" ;;
+  esac
+done
+DIR="$(cd "$(dirname "$SOURCE")/.." && pwd)"
+if [ -x "$DIR/.venv/bin/python" ]; then
+  PY="$DIR/.venv/bin/python"
+else
+  PY="$DIR/.venv/Scripts/python.exe"
+fi
+exec "$PY" "$DIR/ds.py" "$@"

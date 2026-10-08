@@ -23,9 +23,9 @@ from .notify import toast
 from .ocr import Ocr
 from .privacy import Privacy, normalize_title
 from .research import build_research_prompt
+from .osapi import (IS_MAC, IncognitoProbe, acquire_mutex, ensure_capture_permission, foreground, idle_seconds,
+                    set_dpi_aware, window_rect)
 from .store import Store
-from .uia import IncognitoProbe
-from .win import acquire_mutex, foreground, idle_seconds, set_dpi_aware
 
 MUTEX = "Local\\desktop_sense_daemon_v1"
 MASKED_CMD = L("[隱私遮蔽的指令]", "[private command hidden]")
@@ -105,6 +105,8 @@ class Daemon:
             print(L("daemon 已經在跑了（mutex 被占用）", "daemon is already running (mutex held)"))
             return
         set_dpi_aware()
+        if IS_MAC:
+            ensure_capture_permission(self.log)
         for err in self.privacy.errors:
             self.log(L("⚠ 隱私", "⚠ privacy: ") + err)
         if self.cfg.get("_config_error"):
@@ -219,7 +221,7 @@ class Daemon:
         raw = fg["title"]
         kind = self.privacy.classify(fg["app"], raw)
         # Chrome 系的無痕視窗標題看不出來：問無障礙樹（每個視窗只查一次）
-        if kind == "ok" and fg["app"].lower() in self._browsers and self._incognito.is_private(fg["hwnd"]):
+        if kind == "ok" and fg["app"].lower() in self._browsers and self._incognito.is_private(fg["hwnd"], fg["app"]):
             kind = "blocked"
         title, norm = self._title_key(raw)  # 標題一律先遮蔽才留（email、金鑰…）
         if kind == "ok" and (fg["app"], norm) in self._sensitive_ctx:
@@ -274,7 +276,6 @@ class Daemon:
         dwell = now - self.cur["since"]
         if dwell < cc["dwell_before_capture_s"]:
             return
-        from .win import window_rect
         rect = window_rect(self.cur["hwnd"])
         if not rect:
             return

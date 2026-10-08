@@ -22,7 +22,7 @@ _LEGACY = {"ds.cmd hook", "ds hook"}
 
 
 def _python() -> Path:
-    venv = ROOT / ".venv" / "Scripts" / "python.exe"
+    venv = ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     return venv if venv.exists() else Path(sys.executable)
 
 
@@ -49,6 +49,8 @@ def _short_path(path: str) -> str | None:
 
 def shim_command() -> str:
     """一律給絕對路徑：不能只寫 ds.cmd，因為 cmd.exe 會先找目前資料夾，別人的 repo 放一個 ds.cmd 就會被執行。"""
+    if os.name != "nt":  # macOS / Linux：sh -c 跑，用引號包住就行
+        return '"' + str(ROOT / "bin" / "ds").replace('"', '\\"') + '" hook'
     launcher = str(ROOT / "bin" / "ds.cmd")
     if not _SHELL_UNSAFE.search(launcher):
         return f"{launcher} hook"

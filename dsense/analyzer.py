@@ -166,8 +166,13 @@ def resolve_claude() -> str | None:
         p = shutil.which(name)
         if p and Path(p).is_absolute():
             return p
-    guess = Path(os.environ.get("APPDATA", "")) / "npm" / "node_modules" / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe"
-    return str(guess) if guess.exists() else None
+    home = Path.home()
+    for guess in (Path(os.environ.get("APPDATA", "")) / "npm" / "node_modules" / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe",
+                  home / ".claude" / "local" / "claude", home / ".local" / "bin" / "claude",
+                  Path("/opt/homebrew/bin/claude"), Path("/usr/local/bin/claude"), home / ".npm-global" / "bin" / "claude"):
+        if guess.is_file():
+            return str(guess)
+    return None
 
 
 # 本地模型：預設網址與模型（Ollama 預設 port 11434；LM Studio 預設 1234）

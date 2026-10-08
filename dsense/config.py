@@ -34,16 +34,27 @@ DEFAULTS: dict = {
     },
     "apps": {
         "terminal": ["WindowsTerminal.exe", "powershell.exe", "pwsh.exe", "cmd.exe", "conhost.exe",
-                     "OpenConsole.exe", "mintty.exe", "wezterm-gui.exe", "alacritty.exe", "Tabby.exe"],
+                     "OpenConsole.exe", "mintty.exe", "wezterm-gui.exe", "alacritty.exe", "Tabby.exe",
+                     # macOS（bundle id）
+                     "com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable", "com.github.wez.wezterm",
+                     "net.kovidgoyal.kitty", "org.alacritty", "com.mitchellh.ghostty", "co.zeit.hyper"],
         "editor": ["Code.exe", "Cursor.exe", "Windsurf.exe", "devenv.exe", "idea64.exe", "pycharm64.exe",
                    "webstorm64.exe", "rider64.exe", "goland64.exe", "clion64.exe", "sublime_text.exe",
-                   "notepad++.exe", "Zed.exe", "Unity.exe"],
-        "browser": ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "vivaldi.exe", "Arc.exe"],
+                   "notepad++.exe", "Zed.exe", "Unity.exe",
+                   "com.microsoft.VSCode", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf", "dev.zed.Zed",
+                   "com.apple.dt.Xcode", "com.jetbrains.intellij", "com.jetbrains.pycharm", "com.jetbrains.WebStorm",
+                   "com.jetbrains.goland", "com.jetbrains.rider", "com.sublimetext.4", "com.unity3d.UnityEditor5.x"],
+        "browser": ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "vivaldi.exe", "Arc.exe",
+                    "com.google.Chrome", "com.apple.Safari", "org.mozilla.firefox", "company.thebrowser.Browser",
+                    "com.brave.Browser", "com.microsoft.edgemac", "com.operasoftware.Opera", "com.vivaldi.Vivaldi"],
     },
     "privacy": {
         # 完全遮蔽：只記「有用這個 App」，標題、截圖、OCR 一律不留
         "blocked_apps": ["1Password.exe", "Bitwarden.exe", "KeePass.exe", "KeePassXC.exe", "LastPass.exe", "Dashlane.exe",
-                         "Proton Pass.exe", "Enpass.exe"],
+                         "Proton Pass.exe", "Enpass.exe",
+                         "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop",
+                         "org.keepassxc.keepassxc", "com.apple.keychainaccess", "com.apple.Passwords",
+                         "me.proton.pass.electron", "in.sinew.Enpass-Desktop"],
         # 也套用在終端機指令與檔案路徑上
         "blocked_title_regex": [
             # 醫療（繁中、簡中、日、韓、英、西、法、德、葡）
@@ -78,13 +89,18 @@ DEFAULTS: dict = {
             "LockApp.exe", "Telegram.exe", "WhatsApp.exe", "Discord.exe", "Messenger.exe", "Signal.exe",
             "LINE.exe", "LineCall.exe", "LineMediaPlayer.exe", "WeChat.exe", "Weixin.exe", "KakaoTalk.exe",
             "Slack.exe", "Teams.exe", "ms-teams.exe", "Zoom.exe", "Webex.exe", "CiscoCollabHost.exe", "Skype.exe",
+            # macOS（bundle id）
+            "com.apple.MobileSMS", "net.whatsapp.WhatsApp", "ru.keepcoder.Telegram", "com.hnc.Discord",
+            "com.tinyspeck.slackmacgap", "jp.naver.line.mac", "us.zoom.xos", "com.microsoft.teams2",
+            "com.microsoft.teams", "com.apple.FaceTime", "com.tencent.xinWeChat", "org.whispersystems.signal-desktop",
+            "com.kakao.KakaoTalkMac", "com.cisco.webexmeetingsapp", "com.apple.loginwindow", "com.apple.ScreenSaver.Engine",
         ],
         "no_capture_title_regex": [
             r"\bGmail\b|\bOutlook\b|Yahoo Mail|Proton Mail|收件匣|收件箱",
             r"WhatsApp|\bDiscord\b|Telegram Web|\bMessenger\b|\bSlack\b|WeChat|微信",
         ],
         # AI 助手自己的視窗（Claude Code / Codex / Gemini CLI 終端機分頁、Claude 桌面版）：只記標題，不截自己
-        "self_apps": ["claude.exe", "Codex.exe"],
+        "self_apps": ["claude.exe", "Codex.exe", "com.anthropic.claudefordesktop", "com.openai.codex"],
         "self_title_regex": [r"^[\u2800-\u28ff✳✻✽✶✢·◐◓◑◒◴◵◶◷⏺]\s", r"\bClaude Code\b", r"^codex\b|\bCodex CLI\b",
                              r"^gemini\b|\bGemini CLI\b"],
         # 螢幕 OCR 命中任一條 → 整張視為私密：截圖跟文字都不留
@@ -142,7 +158,8 @@ DEFAULTS: dict = {
     },
     "terminal_history": {
         "enabled": True,
-        "files": [r"%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt"],
+        "files": [r"%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt",
+                  "~/.zsh_history", "~/.bash_history"],
         "repeat_threshold": 3,
         "repeat_window_s": 600,
     },

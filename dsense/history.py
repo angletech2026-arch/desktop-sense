@@ -1,4 +1,4 @@
-"""讀 PSReadLine 終端機歷史，偵測「同一指令連續失敗般地重複」。只讀自己機器上的本機檔。"""
+"""讀終端機歷史（PowerShell PSReadLine、zsh、bash），偵測「同一指令連續失敗般地重複」。只讀自己機器上的本機檔。"""
 from __future__ import annotations
 
 import re
@@ -7,6 +7,19 @@ from pathlib import Path
 from .config import expand
 
 _WS = re.compile(r"\s+")
+_ZSH_EXT = re.compile(r"^: \d+:\d+;")  # zsh EXTENDED_HISTORY：「: 1696000000:0;git push」
+
+
+def parse_history(text: str) -> list[str]:
+    """把歷史檔新增的內容拆成一條條指令（處理續行與 zsh 的時間戳前綴）。"""
+    # PSReadLine 用反引號 ` 續行；zsh / bash 用反斜線
+    text = text.replace("`\n", " ").replace("\\\n", " ")
+    out = []
+    for raw in text.splitlines():
+        c = _norm(_ZSH_EXT.sub("", raw))
+        if c:
+            out.append(c)
+    return out
 
 
 def _norm(cmd: str) -> str:
@@ -44,12 +57,7 @@ class HistoryTail:
                 self._pos[p] = size
             except OSError:
                 continue
-            text = data.decode("utf-8", errors="replace")
-            # PSReadLine 用反引號 ` 續行；合併成一條
-            for raw in text.replace("`\n", " ").splitlines():
-                c = _norm(raw)
-                if c:
-                    cmds.append(c)
+            cmds += parse_history(data.decode("utf-8", errors="replace"))
         return cmds
 
 

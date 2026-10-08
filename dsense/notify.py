@@ -1,8 +1,9 @@
-"""Windows 右下角通知（借 PowerShell 的 AppID，不需要額外套件）。"""
+"""桌面通知：Windows 右下角 toast（借 PowerShell 的 AppID，不需要額外套件）；macOS 用 osascript。"""
 from __future__ import annotations
 
 import base64
 import subprocess
+import sys
 
 _PS = r"""
 $ErrorActionPreference = 'Stop'
@@ -21,6 +22,10 @@ $id = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.
 
 
 def toast(title: str, body: str) -> None:
+    if sys.platform == "darwin":
+        from .mac import toast as mac_toast
+        mac_toast(title, body)
+        return
     enc = lambda s: base64.b64encode(s.encode("utf-8")).decode()  # noqa: E731
     script = _PS.replace("__T__", enc(title[:120])).replace("__B__", enc(body[:400]))
     cmd = ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",

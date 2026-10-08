@@ -34,7 +34,7 @@ from .i18n import L
 from .privacy import Privacy, sanitize
 from .config import ROOT, load
 from .store import Store, dur, hm
-from .win import pid_alive
+from .osapi import IS_MAC, pid_alive
 
 USAGE = L(__doc__, """\
 ds <command>: control and query the desktop-sense daemon. Also the entry point the Claude Code hook uses to read state (ds hook).
@@ -69,7 +69,8 @@ def _reconf_stdout():
 
 
 def _py() -> str:
-    venv = ROOT / ".venv" / "Scripts" / "pythonw.exe"
+    """daemon 用的 python：Windows 用 pythonw（沒有黑視窗）；macOS 用 venv 的 python。"""
+    venv = ROOT / ".venv" / ("Scripts/pythonw.exe" if os.name == "nt" else "bin/python")
     if venv.exists():
         return str(venv)
     return sys.executable
@@ -90,11 +91,15 @@ def cmd_start(store: Store, cfg: dict, args) -> int:
         print(L("已經在跑了。", "Already running."))
         return 0
     exe = _py()
-    flags = 0
-    if exe.lower().endswith("pythonw.exe"):
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
-    subprocess.Popen([exe, str(ROOT / "ds.py"), "daemon"], cwd=str(ROOT),
-                     creationflags=flags, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if os.name == "nt":
+        flags = 0
+        if exe.lower().endswith("pythonw.exe"):
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+        subprocess.Popen([exe, str(ROOT / "ds.py"), "daemon"], cwd=str(ROOT),
+                         creationflags=flags, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:  # 跟這個終端機脫鉤：關掉終端機 daemon 照樣跑
+        subprocess.Popen([exe, str(ROOT / "ds.py"), "daemon"], cwd=str(ROOT), start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(40):
         time.sleep(0.25)
         if _daemon_running(store):
@@ -116,11 +121,15 @@ def cmd_stop(store: Store, cfg: dict, args) -> int:
             print(L("已停止。", "Stopped."))
             return 0
     try:
-        import ctypes
-        h = ctypes.windll.kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE（自己的 daemon）
-        if h:
-            ctypes.windll.kernel32.TerminateProcess(h, 0)
-            ctypes.windll.kernel32.CloseHandle(h)
+        if os.name == "nt":
+            import ctypes
+            h = ctypes.windll.kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE（自己的 daemon）
+            if h:
+                ctypes.windll.kernel32.TerminateProcess(h, 0)
+                ctypes.windll.kernel32.CloseHandle(h)
+        else:
+            import signal
+            os.kill(pid, signal.SIGTERM)
     except OSError:
         pass
     print(L("已強制停止。", "Force-stopped."))
@@ -592,9 +601,56 @@ def cmd_daemon(store: Store, cfg: dict, args) -> int:
     return 0
 
 
+LAUNCH_LABEL = "io.angletech.desktop-sense"
+
+
+def launch_agent_path() -> Path:
+    return Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
+
+
+def launch_agent_plist(python: str, ds_py: str, log_path: str, path_env: str) -> bytes:
+    """macOS 登入時自動啟動 daemon 的 LaunchAgent。PATH 帶安裝當下的，daemon 才找得到 claude。"""
+    import plistlib
+    return plistlib.dumps({
+        "Label": LAUNCH_LABEL,
+        "ProgramArguments": [python, ds_py, "daemon"],
+        "RunAtLoad": True,
+        "KeepAlive": False,
+        "ProcessType": "Background",
+        "EnvironmentVariables": {"PATH": path_env},
+        "StandardOutPath": log_path,
+        "StandardErrorPath": log_path,
+    })
+
+
+def _autostart_mac(store: Store, action: str) -> int:
+    plist = launch_agent_path()
+    domain = f"gui/{os.getuid()}"
+    if action == "on":
+        plist.parent.mkdir(parents=True, exist_ok=True)
+        plist.write_bytes(launch_agent_plist(_py(), str(ROOT / "ds.py"), str(store.root / "launchd.log"),
+                                             os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")))
+        subprocess.run(["launchctl", "bootout", f"{domain}/{LAUNCH_LABEL}"], capture_output=True)
+        subprocess.run(["launchctl", "bootstrap", domain, str(plist)], capture_output=True)
+        print(L("已設定登入時自動啟動：", "Autostart enabled: ") + str(plist))
+    elif action == "off":
+        subprocess.run(["launchctl", "bootout", f"{domain}/{LAUNCH_LABEL}"], capture_output=True)
+        if plist.exists():
+            plist.unlink()
+            print(L("已取消登入時自動啟動。", "Autostart disabled."))
+        else:
+            print(L("本來就沒設。", "Autostart wasn't enabled."))
+    else:
+        print(L("登入時自動啟動：開　", "autostart: on  ") + str(plist) if plist.exists()
+              else L("登入時自動啟動：關（ds autostart on 開啟）", "autostart: off (enable with: ds autostart on)"))
+    return 0
+
+
 def cmd_autostart(store: Store, cfg: dict, args) -> int:
-    import winreg
     action = args[0] if args else "status"
+    if IS_MAC:
+        return _autostart_mac(store, action)
+    import winreg
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_READ | winreg.KEY_SET_VALUE) as k:
         if action == "on":
             winreg.SetValueEx(k, RUN_NAME, 0, winreg.REG_SZ, _autostart_cmd())

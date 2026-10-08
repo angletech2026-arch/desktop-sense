@@ -13,6 +13,16 @@ _CONFIG = Path(__file__).resolve().parent.parent / "config.json"
 
 
 def _system_lang() -> str:
+    import sys
+    if sys.platform == "darwin":
+        try:
+            import subprocess
+            out = subprocess.run(["defaults", "read", "-g", "AppleLanguages"], capture_output=True, text=True,
+                                 timeout=3).stdout
+            first = out.replace("(", " ").replace('"', " ").replace(",", " ").split()
+            return "zh" if first and first[0].lower().startswith("zh") else "en"
+        except Exception:
+            pass
     try:
         import ctypes
         lid = ctypes.windll.kernel32.GetUserDefaultUILanguage()

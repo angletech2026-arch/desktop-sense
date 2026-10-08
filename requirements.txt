@@ -1,10 +1,15 @@
 pillow>=10.0
 numpy>=1.26
-winrt-runtime>=3.2
-winrt-Windows.Foundation>=3.2
-winrt-Windows.Foundation.Collections>=3.2
-winrt-Windows.Globalization>=3.2
-winrt-Windows.Graphics.Imaging>=3.2
-winrt-Windows.Media.Ocr>=3.2
-winrt-Windows.Storage.Streams>=3.2
-comtypes>=1.4
+# Windows: built-in OCR (Windows.Media.Ocr) + UI Automation (incognito detection)
+winrt-runtime>=3.2 ; sys_platform == "win32"
+winrt-Windows.Foundation>=3.2 ; sys_platform == "win32"
+winrt-Windows.Foundation.Collections>=3.2 ; sys_platform == "win32"
+winrt-Windows.Globalization>=3.2 ; sys_platform == "win32"
+winrt-Windows.Graphics.Imaging>=3.2 ; sys_platform == "win32"
+winrt-Windows.Media.Ocr>=3.2 ; sys_platform == "win32"
+winrt-Windows.Storage.Streams>=3.2 ; sys_platform == "win32"
+comtypes>=1.4 ; sys_platform == "win32"
+# macOS: window list + capture (Quartz), frontmost app (AppKit), OCR (Vision)
+pyobjc-framework-Quartz>=10.0 ; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=10.0 ; sys_platform == "darwin"
+pyobjc-framework-Vision>=10.0 ; sys_platform == "darwin"
