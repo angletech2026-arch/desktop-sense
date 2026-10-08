@@ -105,7 +105,7 @@ Run `ds config` to see the effective settings. All defaults are in [`dsense/conf
 
 ## Fully local mode (Ollama / LM Studio)
 
-> **Beta:** built against the official Ollama and OpenAI-compatible APIs and covered by tests, but not yet field-tested on many setups. Issues and reports welcome.
+> Tested with Ollama 0.40 + `gemma3:4b` on an RTX 3060 Ti, through both Ollama's native API and its OpenAI-compatible API (~10 s per analysis once the model is loaded; the first call takes about a minute). LM Studio / llama.cpp / vLLM use the same OpenAI-compatible format but haven't been tested directly yet — reports welcome. Small models give rougher summaries; `qwen2.5vl:7b` or larger reads screens noticeably better.
 
 Don't want screenshots to leave your PC at all? Point the analyzer at a local vision model:
 
