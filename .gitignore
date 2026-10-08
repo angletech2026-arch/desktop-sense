@@ -1,0 +1,10 @@
+data/
+.venv/
+config.json
+__pycache__/
+*.pyc
+.pytest_cache/
+*.tmp
+*.bak-desktop-sense-*
+.coverage
+htmlcov/

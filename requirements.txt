@@ -1,0 +1,9 @@
+pillow>=10.0
+numpy>=1.26
+winrt-runtime>=3.2
+winrt-Windows.Foundation>=3.2
+winrt-Windows.Foundation.Collections>=3.2
+winrt-Windows.Globalization>=3.2
+winrt-Windows.Graphics.Imaging>=3.2
+winrt-Windows.Media.Ocr>=3.2
+winrt-Windows.Storage.Streams>=3.2
