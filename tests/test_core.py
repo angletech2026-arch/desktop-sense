@@ -58,6 +58,16 @@ class DetectTest(unittest.TestCase):
         errs = find_errors(t, "WindowsTerminal.exe", EDITORS)
         self.assertEqual(len(errs), 2)
 
+    def test_data_and_config_location_override(self):
+        import subprocess
+        import sys
+        env = dict(os.environ, DESKTOP_SENSE_DATA=str(Path("X:/elsewhere/data")),
+                   DESKTOP_SENSE_CONFIG=str(Path("X:/elsewhere/demo.json")))
+        out = subprocess.run([sys.executable, "-c", "from dsense import config; print(config.DATA); print(config.CONFIG_PATH)"],
+                             cwd=str(Path(__file__).resolve().parent.parent), env=env,
+                             capture_output=True, text=True).stdout.split()
+        self.assertEqual(out, [str(Path("X:/elsewhere/data")), str(Path("X:/elsewhere/demo.json"))])
+
     def test_tsc_errors_survive_ocr(self):
         # Windows OCR 實際讀出來的 tsc 輸出：TS 變成 Ts、冒號前多空白、句點變 •
         t = "src/page.ts:5:35 - error Ts2339 :\nProperty 'user'\nFound 1 error in src/page • ts"

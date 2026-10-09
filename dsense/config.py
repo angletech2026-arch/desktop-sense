@@ -9,8 +9,9 @@ from pathlib import Path
 from .i18n import L
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
-CONFIG_PATH = ROOT / "config.json"
+# 可以換位置：DESKTOP_SENSE_DATA（例如放到別顆硬碟）、DESKTOP_SENSE_CONFIG（另一份設定，例如錄 demo 用乾淨的紀錄）
+DATA = Path(os.environ["DESKTOP_SENSE_DATA"]) if os.environ.get("DESKTOP_SENSE_DATA") else ROOT / "data"
+CONFIG_PATH = Path(os.environ["DESKTOP_SENSE_CONFIG"]) if os.environ.get("DESKTOP_SENSE_CONFIG") else ROOT / "config.json"
 
 DEFAULTS: dict = {
     "language": "auto",  # auto = 跟 Windows 介面語言；zh / en 強制
