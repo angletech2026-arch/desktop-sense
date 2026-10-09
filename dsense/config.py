@@ -101,8 +101,11 @@ DEFAULTS: dict = {
         ],
         # AI 助手自己的視窗（Claude Code / Codex / Gemini CLI 終端機分頁、Claude 桌面版）：只記標題，不截自己
         "self_apps": ["claude.exe", "Codex.exe", "com.anthropic.claudefordesktop", "com.openai.codex"],
-        "self_title_regex": [r"^[\u2800-\u28ff✳✻✽✶✢·◐◓◑◒◴◵◶◷⏺]\s", r"\bClaude Code\b", r"^codex\b|\bCodex CLI\b",
-                             r"^gemini\b|\bGemini CLI\b"],
+        # 轉圈符號：Windows Terminal／iTerm2 在標題開頭，macOS Terminal 是「使用者 — ✳ 標題 — claude …」夾在中間；
+        # 「— claude …」「(claude)」是 macOS 終端機標題裡正在跑的指令
+        "self_title_regex": [r"(?:^|\s[—–]\s)[\u2800-\u28ff✳✻✽✶✢·◐◓◑◒◴◵◶◷⏺]\s", r"\bClaude Code\b",
+                             r"\s[—–]\s(?:claude|codex|gemini)(?:\s|$)", r"\((?:claude|codex|gemini)\)\s*$",
+                             r"^codex\b|\bCodex CLI\b", r"^gemini\b|\bGemini CLI\b"],
         # 螢幕 OCR 命中任一條 → 整張視為私密：截圖跟文字都不留
         "sensitive_text_regex": [
             r"\b[A-Z][12]\d{8}\b",

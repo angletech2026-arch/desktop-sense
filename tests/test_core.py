@@ -750,6 +750,13 @@ class MacLogicTest(unittest.TestCase):
         self.assertEqual(PV.classify("com.tinyspeck.slackmacgap", "general - Slack"), "nocap")
         self.assertEqual(PV.classify("com.apple.MobileSMS", "Messages"), "nocap")
         self.assertEqual(PV.classify("com.apple.Terminal", "✳ Claude Code — node"), "self")
+        # macOS Terminal 的標題是「使用者 — ✳ 對話標題 — claude …」：不管對話標題是什麼都要認得
+        self.assertEqual(PV.classify("com.apple.Terminal", "angletech — ✳ 備忘錄測試 — claude TMPDIR=/var/x"), "self")
+        self.assertEqual(PV.classify("com.apple.Terminal", "me — ⠂ fix tests — claude"), "self")
+        self.assertEqual(PV.classify("com.googlecode.iterm2", "Fix tests (claude)"), "self")
+        self.assertEqual(PV.classify("com.apple.Terminal", "me — npm run build — node"), "ok")
+        self.assertEqual(PV.classify("com.apple.Terminal", "me — claude-notes.md — vim"), "ok")
+        self.assertEqual(PV.classify("com.apple.Terminal", "me — zsh — 80×24"), "ok")
         self.assertEqual(PV.classify("com.anthropic.claudefordesktop", "Claude"), "self")
         self.assertEqual(PV.classify("com.google.Chrome", "GitHub"), "ok")
 
