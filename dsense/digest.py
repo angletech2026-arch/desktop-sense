@@ -41,6 +41,10 @@ def _reclean(privacy: Privacy | None, text: str) -> str | None:
 
 KIND_LABEL = {"blocked": L("（隱私遮蔽）", " (private)"), "self": L("（Claude）", " (Claude)"),
               "nocap": "", "ok": "", "idle": "", "paused": ""}
+# 「現在」那行多說為什麼沒有截圖：使用者問「你看得到我的螢幕嗎」時，AI 才不會答成「完全看不到」
+NOW_NOTE = {"self": L("（AI 助手自己的視窗：不截圖，切到別的 App 才有畫面）",
+                      " (the assistant's own window: not captured; other apps are)"),
+            "nocap": L("（這個 App 只記標題、不截圖）", " (title only for this app, no screenshots)")}
 
 
 def segments(events: list[dict], start_ts: float, end_ts: float) -> list[dict]:
@@ -381,7 +385,7 @@ def hook_context(state: dict, insight: dict | None, cfg: dict, now: float, since
         idle = dur(now - state.get('idle_since', now))
         lines.append(L(f"使用者閒置中（約 {idle}）。", f"User is idle (~{idle})."))
     if cur:
-        tag = KIND_LABEL.get(cur.get("kind", "ok"), "")
+        tag = NOW_NOTE.get(cur.get("kind", "ok")) or KIND_LABEL.get(cur.get("kind", "ok"), "")
         title = "" if cur.get("kind") == "blocked" else L("｜", " — ") + sanitize(cur.get('title', ''), 90)
         held = dur(now - cur.get('since', now))
         app = sanitize(cur.get('app', ''), 60)
