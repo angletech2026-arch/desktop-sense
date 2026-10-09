@@ -35,34 +35,47 @@ case "$ROOT" in
 esac
 
 # --- 1. Python 3.10+ ---------------------------------------------------------
+# Usable = 3.10+ and pip can run. Homebrew has shipped Python bottles whose pyexpat can't load on the
+# macOS version they were installed on, which breaks pip, so check the modules pip needs.
+usable() { "$1" -c 'import sys, ssl, pyexpat; sys.exit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; }
+
 PY=""
+BROKEN=""
 # Homebrew's folders are listed too, for shells that don't have them on PATH (e.g. over SSH).
 for c in python3.14 python3.13 python3.12 python3.11 python3.10 python3 \
          /opt/homebrew/bin/python3 /usr/local/bin/python3; do
   p="$(command -v "$c" 2>/dev/null)" || continue
   # Apple's /usr/bin/python3 is a stub that pops up an "install developer tools" dialog when they're missing
   if [ "$p" = /usr/bin/python3 ] && ! xcode-select -p >/dev/null 2>&1; then continue; fi
-  if "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-    PY="$p"; break
-  fi
+  if usable "$p"; then PY="$p"; break; fi
+  if "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then BROKEN="$p"; fi
 done
 UV="$(command -v uv 2>/dev/null || true)"
 [ -z "$UV" ] && [ -x "$HOME/.local/bin/uv" ] && UV="$HOME/.local/bin/uv"
 if [ -z "$PY" ] && [ -z "$UV" ]; then
-  say "Python 3.10 or newer was not found. Either install it with Homebrew:"
-  say "    brew install python"
-  say "or, if you don't have an admin password, install uv (no admin needed) and run this script again:"
+  if [ -n "$BROKEN" ]; then
+    say "$BROKEN is new enough but broken on this Mac (it can't load ssl/pyexpat, so pip can't run)."
+    say "Install uv (no admin password needed) and run this script again - it downloads a working Python:"
+  else
+    say "Python 3.10 or newer was not found. Either install it with Homebrew (brew install python),"
+    say "or install uv (no admin password needed) and run this script again:"
+  fi
   say "    curl -LsSf https://astral.sh/uv/install.sh | sh"
   exit 1
 fi
 
 # --- 2. Virtual environment + dependencies ------------------------------------
+# A .venv left by a failed run (no pip, or made from a broken Python) is rebuilt.
+if [ -e "$ROOT/.venv" ] && ! { usable "$ROOT/.venv/bin/python" && "$ROOT/.venv/bin/python" -m pip --version >/dev/null 2>&1; }; then
+  say "Rebuilding the virtual environment (.venv)..."
+  rm -rf "$ROOT/.venv"
+fi
 if [ ! -x "$ROOT/.venv/bin/python" ]; then
   say "Creating virtual environment (.venv)..."
   if [ -n "$PY" ]; then
     "$PY" -m venv "$ROOT/.venv"
   else
-    say "No Python 3.10+ found - using uv to download Python 3.12 (no admin password needed)..."
+    say "No working Python 3.10+ found - using uv to download Python 3.12 (no admin password needed)..."
     "$UV" venv --seed --python 3.12 "$ROOT/.venv"
   fi
 fi
