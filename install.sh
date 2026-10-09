@@ -41,16 +41,25 @@ for c in python3.13 python3.12 python3.11 python3.10 python3; do
     PY="$c"; break
   fi
 done
-if [ -z "$PY" ]; then
-  say "Python 3.10 or newer was not found. Install it, then run this script again:"
+UV="$(command -v uv 2>/dev/null || true)"
+[ -z "$UV" ] && [ -x "$HOME/.local/bin/uv" ] && UV="$HOME/.local/bin/uv"
+if [ -z "$PY" ] && [ -z "$UV" ]; then
+  say "Python 3.10 or newer was not found. Either install it with Homebrew:"
   say "    brew install python"
+  say "or, if you don't have an admin password, install uv (no admin needed) and run this script again:"
+  say "    curl -LsSf https://astral.sh/uv/install.sh | sh"
   exit 1
 fi
 
 # --- 2. Virtual environment + dependencies ------------------------------------
 if [ ! -x "$ROOT/.venv/bin/python" ]; then
   say "Creating virtual environment (.venv)..."
-  "$PY" -m venv "$ROOT/.venv"
+  if [ -n "$PY" ]; then
+    "$PY" -m venv "$ROOT/.venv"
+  else
+    say "No Python 3.10+ found - using uv to download Python 3.12 (no admin password needed)..."
+    "$UV" venv --seed --python 3.12 "$ROOT/.venv"
+  fi
 fi
 say "Installing dependencies..."
 "$ROOT/.venv/bin/python" -m pip install --disable-pip-version-check -q -r "$ROOT/requirements.txt"

@@ -27,3 +27,16 @@ jobs:
       - name: Shell script syntax
         if: runner.os == 'macOS'
         run: bash -n install.sh && bash -n uninstall.sh && bash -n bin/ds
+      - name: macOS end-to-end install (launchd daemon, status, uninstall)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          ./install.sh --no-hooks
+          sleep 15
+          export PATH="$HOME/.local/bin:$PATH"
+          ds status
+          ds now || true
+          ds tail 30 || true
+          cat data/launchd.log 2>/dev/null | tail -20 || true
+          launchctl print "gui/$(id -u)/io.angletech.desktop-sense" | head -20 || true
+          ./uninstall.sh --purge
