@@ -98,7 +98,8 @@ if xcode-select -p >/dev/null 2>&1; then
     cc -O2 -Wall -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 \
        -o "$APP/Contents/MacOS/desktop-sense" "$ROOT/macos/launcher.c"
     printf '%s\n' "$BUILD_ID" > "$APP/Contents/Resources/build-id"
-    codesign --force --sign - "$APP" >/dev/null 2>&1
+    codesign --force --sign - "$APP" >/dev/null 2>&1 \
+      || say "Warning: couldn't sign desktop-sense.app; macOS may not keep its Screen Recording permission."
   fi
 else
   TARGET="Python"
