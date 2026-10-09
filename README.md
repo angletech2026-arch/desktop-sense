@@ -41,6 +41,7 @@ Screen and web text is treated as **untrusted data**: invisible characters are s
 
 desktop-sense reads your screen, so here is plainly what it does and doesn't protect against:
 
+- **desktop-sense never runs commands and never changes your assistant's permissions.** It only adds context. Whether your assistant may run commands without asking is your call: in its default mode it asks you first, so even an injected instruction shows up as a command you can refuse.
 - **Prompt injection can be reduced, not eliminated.** A web page, email or chat message on your screen can contain text written to steer an AI. desktop-sense fences and sanitizes screen text and tells your assistant it's untrusted, but a model can still be fooled. If you let your assistant run commands without asking (auto-approve or bypass-permissions modes), you carry more of that risk.
 - **What's on disk isn't encrypted.** `data/` is readable only by your user account (the installers lock it down), but anything running as you, malware included, can read it. Your assistant's own transcripts (e.g. `~/.claude/projects`) also keep the context blocks it received, under that tool's retention.
 - **Detection is best-effort.** Sensitive-window rules match app names and title keywords, and secret detection depends on OCR reading the text correctly. Add rules for whatever matters to you, and use `ds pause` when you need to.
