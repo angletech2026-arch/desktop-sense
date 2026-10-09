@@ -4,8 +4,9 @@
 
 desktop-sense is a small local daemon for Windows (macOS in beta) that tells Claude Code (and Codex CLI / Gemini CLI) what's on your screen — automatically, on every message. No more pasting screenshots, copying error text, or explaining "I'm in the browser looking at the deploy log".
 
-> You: *"why is this failing?"*
-> Claude: *"Your `npm run build` in the terminal fails with `Type error: Property 'user' does not exist on type 'Session'` (app/page.tsx:42). desktop-sense already found the matching GitHub issue — the fix is …"*
+![The build fails, desktop-sense spots the error on screen, and Claude Code answers "why is this failing?" with no screenshot or copy-paste](docs/demo.gif)
+
+*Real recording, waits sped up: the build fails → desktop-sense notices the error and pops a tip → you just ask Claude Code "why is this failing?".*
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · MIT · Windows 10/11 · macOS 12+ (beta)
 

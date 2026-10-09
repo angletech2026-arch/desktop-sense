@@ -4,6 +4,10 @@
 
 desktop-sense 是一個在 Windows（macOS 測試版）背景執行的小程式。你每傳一則訊息給 Claude Code（或 Codex CLI、Gemini CLI），它就自動附上「你現在在哪個視窗、最近 20 分鐘做了什麼、畫面上有什麼錯誤」。不用再貼截圖、複製錯誤訊息，也不用解釋「我現在在瀏覽器看部署 log」。
 
+![建置失敗後，desktop-sense 自己發現畫面上的錯誤，Claude Code 不用截圖、不用貼錯誤就回答「why is this failing?」](docs/demo.gif)
+
+*實際錄影，等待的部分有快轉：建置失敗 → desktop-sense 發現錯誤並跳出提示 → 直接問 Claude Code「why is this failing?」。*
+
 [English](README.md) · [繁體中文](README.zh-TW.md) · MIT 授權 · Windows 10/11 · macOS 12 以上（測試版）
 
 ## 功能
