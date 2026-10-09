@@ -35,6 +35,18 @@ desktop-sense 是一個在 Windows（macOS 測試版）背景執行的小程式�
 
 螢幕和網頁上的文字一律視為**不可信資料**：去掉看不見的字元、清理過、包在隨機標記裡；即時串流每行標〔螢幕資料〕；自動搜尋的連結只有 GitHub、Stack Overflow、Reddit 這類開發者網站才能點；並明確告訴 AI 不准照裡面的指示做（防 prompt injection）。背景分析和自動搜尋的 `claude` 在沙箱裡跑：空的工作資料夾、不載入 CLAUDE.md／外掛／hook（`--safe-mode`）、沒有能執行程式的工具（`--restricted`）；而且只有終端機或編輯器裡的錯誤會觸發搜尋，網頁不行。
 
+## 資安模型與限制
+
+desktop-sense 會讀你的螢幕，所以老實說清楚它防得到什麼、防不到什麼：
+
+- **網頁藏指令（prompt injection）只能降低，沒辦法完全擋住。** 螢幕上的網頁、信件、聊天訊息，可能藏著專門寫來操控 AI 的文字。desktop-sense 會把螢幕文字包起來、清理過，並告訴 AI 這是不可信的資料，但模型還是有可能被騙。如果你讓 AI 不經同意就執行指令（auto-approve、bypass permissions 這類模式），風險會比較高。
+- **存在電腦上的紀錄沒有加密。** `data/` 只有你自己的帳號讀得到（安裝程式會鎖權限），但用你身分執行的任何程式，包括惡意程式，都讀得到。AI 工具自己的對話紀錄（例如 `~/.claude/projects`）也會留著它收到的內容，保留多久依那個工具的規定。
+- **偵測是盡力而為。** 敏感視窗是比對 App 名稱和標題關鍵字，金鑰偵測要靠文字辨識讀對。重要的東西請自己加規則，需要時用 `ds pause` 暫停。
+- **macOS 的權限範圍。** 螢幕錄製權限是給 `~/Applications/desktop-sense.app`。這個 App 只會啟動這份安裝的 daemon（路徑在編譯時寫死，不理會傳給它的參數），也會清掉 `DYLD_*` 和 `PYTHON*` 環境變數，別的程式沒辦法借它拿到權限。不過已經用你身分在跑的惡意程式，還是可以改 desktop-sense 自己的檔案；任何拿到螢幕錄製權限的工具都一樣，包括你的終端機。
+- **沒有對外開放的入口。** desktop-sense 不開任何連接埠，也不回傳任何使用數據。
+
+發現資安問題？請[私下回報](https://github.com/angletech2026-arch/desktop-sense/security/advisories/new)，不要開公開的 issue。
+
 ## 支援的工具
 
 | 工具 | 方式 | 狀態 |
@@ -71,7 +83,7 @@ cd ~/desktop-sense
 
 裝好後到「系統設定 → 隱私權與安全性 → 螢幕與系統錄音」（舊版 macOS 叫「螢幕錄製」）把 **desktop-sense** 打開，再執行 `ds restart`。通常 macOS 會直接跳出來問；清單裡沒有的話，按 **＋** 選 `~/Applications/desktop-sense.app`。沒開的話只能知道你在用哪個 App，看不到視窗標題、也不能截圖；`ds status` 會告訴你權限有沒有開，之後 macOS 收回權限時也會跳通知提醒。
 
-為什麼要一個 App：macOS 只把螢幕錄製權限給 App，一般的 Python 連加進清單都不行。所以安裝程式會在你的電腦上編一個很小的啟動程式 `~/Applications/desktop-sense.app`（原始碼 [`macos/launcher.c`](macos/launcher.c)），由它帶起 Python 的 daemon。只有原始碼改了才會重編，更新時不會害 macOS 又來問一次。
+為什麼要一個 App：macOS 只把螢幕錄製權限給 App，一般的 Python 連加進清單都不行。所以安裝程式會在你的電腦上編一個很小的啟動程式 `~/Applications/desktop-sense.app`（原始碼 [`macos/launcher.c`](macos/launcher.c)），由它帶起 Python 的 daemon。這個 App 只會啟動這份安裝的 daemon，別的程式沒辦法借它拿到權限（見「資安模型與限制」）。只有原始碼改了、或資料夾搬了位置才會重編，更新時不會害 macOS 又來問一次。
 
 Mac 上的無痕偵測：Chrome、Brave、Edge、Vivaldi、Opera 會直接問瀏覽器「最前面的視窗是不是無痕」（macOS 會問你一次 desktop-sense 能不能控制瀏覽器）。在你允許之前，以及 Safari、Arc（沒辦法從外部問），瀏覽器視窗一律**只記標題、不截圖**。隱私優先：判斷不了就不截。
 
@@ -145,6 +157,12 @@ LM Studio、llama.cpp、vLLM 用 `"backend": "openai"`（OpenAI 相容伺服器�
 - **介面**（指令輸出、通知、分析）：繁體中文與英文，依 Windows 語言自動選（`"language": "zh"` / `"en"` 可強制）。
 - **OCR**：Windows 用系統有裝的 OCR 語言（設定 → 時間與語言 → 語言；約 25 種，含中、英、日、韓與多數歐洲語言）；macOS 用內建的 Vision（中、英、日、韓與主要歐洲語言）。可用 `capture.ocr_language` 指定。
 - **內建隱私關鍵字**：繁中、簡中、英、日、韓、西、法、德、葡文；其他語言可在 `config.json` 自己加。
+
+## 跟其他工具的差別
+
+- **Screenpipe** 會 24 小時錄下所有畫面和聲音，讓 AI 透過 MCP 去「搜尋」那些紀錄。desktop-sense 走相反的路線：把「現在的狀態」主動附進每則訊息，留的資料很少（截圖 48 小時就刪），敏感畫面直接不記錄，另外還有錯誤偵測和自動找解法。
+- **截圖類的 MCP 工具** 要等模型決定呼叫才拍一張。desktop-sense 在你問之前就已經準備好了，而且是一段時間線，不只是一張圖。
+- **OpenAI 的 [Computer History](https://learn.chatgpt.com/docs/customization/computer-history)**（原名 Chronicle）會把你在 Mac 上做的事整理成 ChatGPT 和 Codex 的記憶：操作紀錄會送到 OpenAI 的伺服器整理，而且要 Pro、Business 或 Enterprise 方案。desktop-sense 支援 Claude Code、Codex CLI、Gemini CLI，Windows 和 macOS 都能用，免費開源，紀錄存在你自己的電腦，而且是每則訊息都附上即時狀態，不是事後的記憶。
 
 ## 移除
 

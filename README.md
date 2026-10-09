@@ -37,6 +37,18 @@ desktop-sense is a small local daemon for Windows (macOS in beta) that tells Cla
 
 Screen and web text is treated as **untrusted data**: invisible characters are stripped, everything is sanitized and wrapped in a random fence, live-stream lines are tagged `[screen data]`, auto-search links are only clickable for well-known developer sites (GitHub, Stack Overflow, Reddit, …), and your assistant is told never to act on instructions found inside (prompt-injection defense). The analyzer and auto-search run `claude` in a sandbox: an empty working folder, no CLAUDE.md / plugins / hooks (`--safe-mode`), no code-running tools (`--restricted`), and only errors seen in your terminal or editor — never a web page — can trigger a search.
 
+## Security model and limits
+
+desktop-sense reads your screen, so here is plainly what it does and doesn't protect against:
+
+- **Prompt injection can be reduced, not eliminated.** A web page, email or chat message on your screen can contain text written to steer an AI. desktop-sense fences and sanitizes screen text and tells your assistant it's untrusted, but a model can still be fooled. If you let your assistant run commands without asking (auto-approve or bypass-permissions modes), you carry more of that risk.
+- **What's on disk isn't encrypted.** `data/` is readable only by your user account (the installers lock it down), but anything running as you, malware included, can read it. Your assistant's own transcripts (e.g. `~/.claude/projects`) also keep the context blocks it received, under that tool's retention.
+- **Detection is best-effort.** Sensitive-window rules match app names and title keywords, and secret detection depends on OCR reading the text correctly. Add rules for whatever matters to you, and use `ds pause` when you need to.
+- **macOS permission scope.** Screen Recording is granted to `~/Applications/desktop-sense.app`. Its launcher only ever starts this installation's daemon (the path is compiled in, its arguments are ignored) and drops `DYLD_*` and `PYTHON*` environment variables, so other programs can't borrow the permission through it. Malware already running as you could still modify desktop-sense's own files, as with any tool you grant Screen Recording to, including your terminal.
+- **No network surface.** desktop-sense opens no listening ports and sends no telemetry.
+
+Found a security problem? Please [report it privately](https://github.com/angletech2026-arch/desktop-sense/security/advisories/new) instead of opening a public issue.
+
 ## Supported tools
 
 | Tool | How | Status |
@@ -73,7 +85,7 @@ cd ~/desktop-sense
 
 Then allow **Screen Recording** for **desktop-sense** (System Settings → Privacy & Security → Screen & System Audio Recording; just "Screen Recording" on older macOS) and run `ds restart`. macOS usually asks right away; if desktop-sense isn't in the list, click **+** and choose `~/Applications/desktop-sense.app`. Without the permission, desktop-sense still tracks which app you're in but can't read window titles or take screenshots — `ds status` tells you when it's missing, and the daemon notifies you if macOS revokes it later.
 
-Why an app: macOS only grants Screen Recording to apps — a plain Python can't even be added to that list — so the installer builds a tiny launcher, `~/Applications/desktop-sense.app` (source: [`macos/launcher.c`](macos/launcher.c), built on your machine), that runs the Python daemon. It's rebuilt only when its source changes, so updates don't make macOS ask again.
+Why an app: macOS only grants Screen Recording to apps — a plain Python can't even be added to that list — so the installer builds a tiny launcher, `~/Applications/desktop-sense.app` (source: [`macos/launcher.c`](macos/launcher.c), built on your machine), that runs the Python daemon. The app can only start this installation's daemon, so nothing else can borrow the permission (see [Security model and limits](#security-model-and-limits)). It's rebuilt only when its source or the folder's location changes, so updates don't make macOS ask again.
 
 Incognito on macOS: for Chrome, Brave, Edge, Vivaldi and Opera, desktop-sense asks the browser whether the front window is incognito (macOS asks you once whether desktop-sense may control the browser). Until that's allowed — and always for Safari and Arc, which can't be asked — browser windows are **title-only (no screenshots)**. Privacy first: if desktop-sense can't tell, it doesn't capture.
 
@@ -151,6 +163,7 @@ LM Studio, llama.cpp and vLLM work too with `"backend": "openai"` (any OpenAI-co
 
 - **Screenpipe** records everything 24/7 and lets your assistant *search* that history over MCP. desktop-sense is the opposite trade-off: it *pushes* only the current context into each message, keeps very little (screenshots expire after 48 h), drops sensitive screens instead of recording them, and adds error detection and auto-research.
 - **Screenshot MCP servers** take a picture when the model decides to call them. desktop-sense is already there before you ask, with a timeline, not just one frame.
+- **OpenAI's [Computer History](https://learn.chatgpt.com/docs/customization/computer-history)** (formerly Chronicle) builds memories for ChatGPT and Codex from what you do on your Mac. Interaction events are summarized on OpenAI's servers, and it needs a Pro, Business or Enterprise plan. desktop-sense works with Claude Code, Codex CLI and Gemini CLI on Windows and macOS, is free and open source, keeps its records on your machine, and gives your assistant live context with every message rather than memories.
 
 ## Uninstall
 
