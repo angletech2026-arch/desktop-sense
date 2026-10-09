@@ -9,7 +9,9 @@ import json
 import os
 from pathlib import Path
 
-_CONFIG = Path(__file__).resolve().parent.parent / "config.json"
+# 跟 config.CONFIG_PATH 同一套規則（不能 import config：它會 import 這個檔案）
+_CONFIG = Path(os.environ["DESKTOP_SENSE_CONFIG"]) if os.environ.get("DESKTOP_SENSE_CONFIG") \
+    else Path(__file__).resolve().parent.parent / "config.json"
 
 
 def _system_lang() -> str:

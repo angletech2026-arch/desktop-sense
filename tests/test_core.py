@@ -67,6 +67,16 @@ class DetectTest(unittest.TestCase):
                              cwd=str(Path(__file__).resolve().parent.parent), env=env,
                              capture_output=True, text=True).stdout.split()
         self.assertEqual(out, [str(Path("X:/elsewhere/data")), str(Path("X:/elsewhere/demo.json"))])
+        # 介面語言也要讀那份設定
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "demo.json"
+            cfg.write_text('{"language": "en"}', encoding="utf-8")
+            env = {k: v for k, v in os.environ.items() if k != "DSENSE_LANG"}
+            env["DESKTOP_SENSE_CONFIG"] = str(cfg)
+            lang = subprocess.run([sys.executable, "-c", "from dsense.i18n import L; print(L('zh', 'en'))"],
+                                  cwd=str(Path(__file__).resolve().parent.parent), env=env,
+                                  capture_output=True, text=True).stdout.strip()
+            self.assertEqual(lang, "en")
 
     def test_tsc_errors_survive_ocr(self):
         # Windows OCR 實際讀出來的 tsc 輸出：TS 變成 Ts、冒號前多空白、句點變 •
