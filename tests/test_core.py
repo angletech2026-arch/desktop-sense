@@ -58,6 +58,12 @@ class DetectTest(unittest.TestCase):
         errs = find_errors(t, "WindowsTerminal.exe", EDITORS)
         self.assertEqual(len(errs), 2)
 
+    def test_tsc_errors_survive_ocr(self):
+        # Windows OCR 實際讀出來的 tsc 輸出：TS 變成 Ts、冒號前多空白、句點變 •
+        t = "src/page.ts:5:35 - error Ts2339 :\nProperty 'user'\nFound 1 error in src/page • ts"
+        self.assertEqual(len(find_errors(t, "WindowsTerminal.exe", EDITORS)), 2)
+        self.assertEqual(len(find_errors("src/a.ts(5,35): error TS2339: x", "Code.exe", EDITORS)), 1)
+
     def test_editor_is_strict(self):
         self.assertEqual(find_errors("catch (error) {}\nconst onError = 1", "Code.exe", EDITORS), [])
 

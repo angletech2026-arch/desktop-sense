@@ -6,7 +6,9 @@ import re
 _STRICT = [
     r"Traceback \(most recent call last\)",
     r"\bnpm ERR!",
-    r"\berror TS\d{3,5}\b",
+    r"(?i:\berror\s*ts\s?\d{3,5}\b)",  # OCR 常把 TS2339 讀成 Ts2339
+    r"(?i::\d+:\d+\s*-\s*error\b)",     # tsc／eslint 的「檔案:行:欄 - error」
+    r"\bFound \d+ errors?\b",          # tsc 最後的總結行
     r"^Type error:",
     r"Failed to compile",
     r"\bBuild (?:failed|error)\b",
