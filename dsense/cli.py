@@ -297,7 +297,8 @@ def _hook_input() -> dict:
             return {}
         # 各家工具送的都是 UTF-8；不要用系統碼頁（cp950）解，中文 prompt 才不會變亂碼
         stream = getattr(sys.stdin, "buffer", None)
-        raw = stream.read().decode("utf-8", "replace") if stream is not None else sys.stdin.read()
+        # utf-8-sig：經過 PowerShell 管線（$OutputEncoding 是 UTF-8 時）前面會多一個 BOM
+        raw = stream.read().decode("utf-8-sig", "replace") if stream is not None else sys.stdin.read().lstrip("﻿")
         d = json.loads(raw) if raw.strip() else {}
         return d if isinstance(d, dict) else {}
     except (OSError, ValueError, UnicodeDecodeError):

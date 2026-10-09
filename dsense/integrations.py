@@ -27,8 +27,22 @@ def _python() -> Path:
 
 
 def claude_command() -> str:
-    # Claude Code 在 Windows 用 Git Bash 跑 hook：正斜線 + 雙引號最穩（路徑有空白也行）
-    return f'"{_python().as_posix()}" "{(ROOT / "ds.py").as_posix()}" hook'
+    """Claude Code 在 Windows 跑 hook 可能用 Git Bash，也可能用 PowerShell（沒裝 Git Bash 時）。
+    PowerShell 遇到「"路徑" "參數"」會語法錯誤，所以 Windows 一律用正斜線、不加引號（兩邊都吃）；
+    路徑有空白就換 8.3 短路徑，真的沒辦法才加引號（只剩 Git Bash 吃得下）。"""
+    py, script = _python().as_posix(), (ROOT / "ds.py").as_posix()
+    quoted = f'"{py}" "{script}" hook'
+    if os.name != "nt":
+        return quoted
+    parts = []
+    for p in (py, script):
+        if _SHELL_UNSAFE.search(p):
+            short = (_short_path(p) or "").replace("\\", "/")
+            if not short or _SHELL_UNSAFE.search(short):
+                return quoted
+            p = short
+        parts.append(p)
+    return f"{parts[0]} {parts[1]} hook"
 
 
 # Codex（PowerShell）/ Gemini CLI 跑 hook 的 shell 不一定。路徑沒有空白或特殊字元 → 直接給 bin\ds.cmd 的絕對路徑

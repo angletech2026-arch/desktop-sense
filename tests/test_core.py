@@ -415,6 +415,13 @@ class ReleaseTest(unittest.TestCase):
                    '"C:/a b/ds.py" hook'):
             self.assertFalse(is_ours(no), no)
         self.assertNotEqual(shim_command(), "ds.cmd hook")  # 一律絕對路徑（cmd.exe 會先找目前資料夾）
+        if os.name == "nt":
+            # Claude Code 沒有 Git Bash 時用 PowerShell 跑 hook：「"路徑" "參數"」會語法錯誤
+            self.assertNotIn('"', claude_command())
+            self.assertNotIn("\\", claude_command())  # Git Bash 會把反斜線吃掉
+        # 舊版寫進設定的加引號格式，也要認得是自己的（ds setup 才會換掉、不會重複）
+        from dsense.integrations import ROOT, _python
+        self.assertTrue(is_ours(f'"{_python().as_posix()}" "{(ROOT / "ds.py").as_posix()}" hook'))
 
     def test_rerun_counts_as_repeat_within_dedupe_window(self):
         from dsense.daemon import Daemon
@@ -561,6 +568,10 @@ class SecurityFixTest(unittest.TestCase):
         import dsense.cli as cli
         payload = json.dumps({"prompt": "看一下這個錯誤", "session_id": "s"}, ensure_ascii=False).encode("utf-8")
         fake = io.TextIOWrapper(io.BytesIO(payload), encoding="cp950", errors="replace")
+        with mock.patch.object(cli.sys, "stdin", fake):
+            self.assertEqual(cli._hook_input()["prompt"], "看一下這個錯誤")
+        # 經過 PowerShell 管線時前面多一個 BOM
+        fake = io.TextIOWrapper(io.BytesIO(b"\xef\xbb\xbf" + payload), encoding="cp950", errors="replace")
         with mock.patch.object(cli.sys, "stdin", fake):
             self.assertEqual(cli._hook_input()["prompt"], "看一下這個錯誤")
 
