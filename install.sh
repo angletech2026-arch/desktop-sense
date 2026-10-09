@@ -85,10 +85,14 @@ if [ "$HOOKS" = 1 ]; then
 fi
 
 # --- 5. Start now + at login ------------------------------------------------
+# `autostart on` (re)loads the LaunchAgent, and launchd starts the daemon right away (with the new code
+# on a re-install); without autostart, restart it once. A slow first start must not abort the installer.
 if [ "$AUTOSTART" = 1 ]; then
-  "$ROOT/.venv/bin/python" "$ROOT/ds.py" autostart on >/dev/null
+  "$ROOT/.venv/bin/python" "$ROOT/ds.py" autostart on
+  "$ROOT/.venv/bin/python" "$ROOT/ds.py" start || true
+else
+  "$ROOT/.venv/bin/python" "$ROOT/ds.py" restart || true
 fi
-"$ROOT/.venv/bin/python" "$ROOT/ds.py" restart || true   # first start can be slow; don't skip the steps below
 
 say ""
 say "Done. One more step - macOS needs your permission to see window titles and take screenshots:"
