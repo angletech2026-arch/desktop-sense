@@ -405,9 +405,10 @@ class Analyzer:
             err = proc.stderr.decode("utf-8", "replace")[:300]
             return {"_error": L(f"沒有結果（rc={proc.returncode}）{err}", f"no result (rc={proc.returncode}) {err}")}
         if result.get("is_error") or result.get("subtype") not in (None, "success"):
-            # 例：超過 --max-budget-usd、結構化輸出重試用完 → 當失敗，不能存成一筆空結果
-            sub = result.get("subtype")
-            return {"_error": L(f"claude 回報失敗：{sub}", f"claude reported failure: {sub}")}
+            # 例：超過 --max-budget-usd、結構化輸出重試用完、沒登入（subtype 還是 success，原因在 result 文字裡）
+            # → 當失敗，不能存成一筆空結果
+            why = " ".join(str(result.get("result") or "").split())[:160] or result.get("subtype")
+            return {"_error": L(f"claude 回報失敗：{why}", f"claude reported failure: {why}")}
         structured = result.get("structured_output")
         if not structured:
             try:
