@@ -425,18 +425,17 @@ class Daemon:
             self.last_alert = {"ts": now, "app": self.cur["app"], "lines": fresh[:4], "shot": shot_rel}
             self.store.append_event({"type": "alert", "app": self.cur["app"], "lines": fresh[:4], "shot": shot_rel})
             self.log(L("偵測到錯誤：", "error detected: ") + " / ".join(fresh[:2])[:160])
+        # 先排分析再排搜尋：兩個共用一個工作佇列，搜尋排在前面的話，通知要多等一整次搜尋（實測多 17 秒）
+        if fresh and self.cfg["analyzer"]["enabled"] and self.analyzer.available() \
+                and now - self._last_err_call >= self.cfg["analyzer"]["error_min_gap_s"]:
+            self._last_err_call = now
+            self._enqueue(now, L(f"畫面出現錯誤：{fresh[0][:120]}", f"error on screen: {fresh[0][:120]}"),
+                          alert=self.last_alert)
         # 自動搜尋的「同一個錯誤第 N 次」看的是重新出現次數，不受上面 90 秒去重影響（重跑又失敗也要算）。
         # 只算終端機 / 編輯器：瀏覽器裡的「錯誤」可能是網頁故意顯示的，不能讓網頁觸發上網搜尋。
         dev_apps = {a.lower() for a in self.cfg["apps"]["terminal"] + self.cfg["apps"]["editor"]}
         if self.cur["app"].lower() in dev_apps:
             self._count_error_hits(now, errs if appeared is None else appeared)
-        if not fresh:
-            return
-        if self.cfg["analyzer"]["enabled"] and self.analyzer.available() \
-                and now - self._last_err_call >= self.cfg["analyzer"]["error_min_gap_s"]:
-            self._last_err_call = now
-            self._enqueue(now, L(f"畫面出現錯誤：{fresh[0][:120]}", f"error on screen: {fresh[0][:120]}"),
-                          alert=self.last_alert)
 
     def _count_error_hits(self, now: float, appeared: list[str]) -> None:
         rc = self.cfg["research"]
@@ -474,7 +473,8 @@ class Daemon:
             return
         self._call_times.append(now)
         self._last_periodic = now
-        model = self.cfg["analyzer"]["deep_model"] if alert else self.cfg["analyzer"]["model"]
+        a = self.cfg["analyzer"]
+        model = (a.get("error_model") or a["model"]) if alert else a["model"]
         self._jobs.put({"ts": now, "trigger": trigger, "alert": alert, "model": model})
 
     def _analyze_loop(self) -> None:

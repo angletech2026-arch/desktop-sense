@@ -186,6 +186,8 @@ DEFAULTS: dict = {
         # model 空白 = Ollama 用 gemma3:4b。只准連 localhost，除非 allow_remote=true。
         "local": {"url": "", "model": "", "allow_remote": False},
         "model": "haiku",
+        # 畫面出現錯誤時用的模型：通知要快（haiku 約 5 秒、sonnet 約 12 秒）；要深入分析就 ds analyze --deep
+        "error_model": "haiku",
         "deep_model": "sonnet",
         "periodic_minutes": 20,
         "error_min_gap_s": 120,
