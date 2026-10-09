@@ -57,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 ### macOS（測試版）
 
-需要：macOS 12 以上、Python 3.10 以上（`brew install python`）、Claude Code／Codex CLI／Gemini CLI 其中之一。請 clone 到像 `~/desktop-sense` 這種地方，**不要**放在「文件」「桌面」「下載項目」或 iCloud 雲碟裡（macOS 不讓背景程式讀那些資料夾，iCloud 還會把截圖上傳；安裝程式會擋）。
+需要：macOS 12 以上、Python 3.10 以上（`brew install python`；沒有管理員密碼的話先裝 [uv](https://docs.astral.sh/uv/)，安裝程式會自己下載 Python）、Claude Code／Codex CLI／Gemini CLI 其中之一。請 clone 到像 `~/desktop-sense` 這種地方，**不要**放在「文件」「桌面」「下載項目」或 iCloud 雲碟裡（macOS 不讓背景程式讀那些資料夾，iCloud 還會把截圖上傳；安裝程式會擋）。
 
 ```bash
 git clone https://github.com/angletech2026-arch/desktop-sense ~/desktop-sense
@@ -65,7 +65,7 @@ cd ~/desktop-sense
 ./install.sh
 ```
 
-裝好後到「系統設定 → 隱私權與安全性 → 螢幕錄製」把 Python 打開，再執行 `ds restart`。沒開的話只能知道你在用哪個 App，看不到視窗標題、也不能截圖；`ds status` 會告訴你權限有沒有開，之後 macOS 收回權限時也會跳通知提醒（`brew upgrade python` 之後可能要重新授權）。
+裝好後到「系統設定 → 隱私權與安全性 → 螢幕錄製」把 Python 打開（用 uv 裝的會顯示成 `python3.12`），再執行 `ds restart`。沒開的話只能知道你在用哪個 App，看不到視窗標題、也不能截圖；`ds status` 會告訴你權限有沒有開，之後 macOS 收回權限時也會跳通知提醒（`brew upgrade python` 之後可能要重新授權）。
 
 Mac 上的無痕偵測：Chrome、Brave、Edge、Vivaldi、Opera 會直接問瀏覽器「最前面的視窗是不是無痕」（macOS 會問你一次 Python 能不能控制瀏覽器）。在你允許之前，以及 Safari、Arc（沒辦法從外部問），瀏覽器視窗一律**只記標題、不截圖**。隱私優先：判斷不了就不截。
 

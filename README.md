@@ -62,7 +62,7 @@ The installer creates a virtual environment, puts `ds` on your PATH, connects ev
 
 ### macOS (beta)
 
-Requirements: macOS 12+, Python 3.10+ (`brew install python`), and Claude Code / Codex CLI / Gemini CLI. Clone it somewhere like `~/desktop-sense` — **not** inside Documents, Desktop, Downloads or iCloud Drive (macOS blocks background apps there, and iCloud would upload your screenshots; the installer refuses those locations).
+Requirements: macOS 12+, Python 3.10+ (`brew install python` — or, if you have no admin password, install [uv](https://docs.astral.sh/uv/) and the installer downloads Python for you), and Claude Code / Codex CLI / Gemini CLI. Clone it somewhere like `~/desktop-sense` — **not** inside Documents, Desktop, Downloads or iCloud Drive (macOS blocks background apps there, and iCloud would upload your screenshots; the installer refuses those locations).
 
 ```bash
 git clone https://github.com/angletech2026-arch/desktop-sense ~/desktop-sense
@@ -70,7 +70,7 @@ cd ~/desktop-sense
 ./install.sh
 ```
 
-Then allow **Screen Recording** for Python (System Settings → Privacy & Security → Screen Recording) and run `ds restart`. Without it, desktop-sense still tracks which app you're in but can't read window titles or take screenshots — `ds status` tells you when the permission is missing, and the daemon notifies you if macOS revokes it later (after `brew upgrade python` you may need to grant it again).
+Then allow **Screen Recording** for Python (listed as `python3.12` if it came from uv; System Settings → Privacy & Security → Screen Recording) and run `ds restart`. Without it, desktop-sense still tracks which app you're in but can't read window titles or take screenshots — `ds status` tells you when the permission is missing, and the daemon notifies you if macOS revokes it later (after `brew upgrade python` you may need to grant it again).
 
 Incognito on macOS: for Chrome, Brave, Edge, Vivaldi and Opera, desktop-sense asks the browser whether the front window is incognito (macOS asks you once whether Python may control the browser). Until that's allowed — and always for Safari and Arc, which can't be asked — browser windows are **title-only (no screenshots)**. Privacy first: if desktop-sense can't tell, it doesn't capture.
 
