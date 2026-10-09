@@ -57,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 ### macOS（測試版）
 
-需要：macOS 12 以上、Python 3.10 以上（`brew install python`；沒有管理員密碼的話先裝 [uv](https://docs.astral.sh/uv/)，安裝程式會自己下載 Python）、Claude Code／Codex CLI／Gemini CLI 其中之一。請 clone 到像 `~/desktop-sense` 這種地方，**不要**放在「文件」「桌面」「下載項目」或 iCloud 雲碟裡（macOS 不讓背景程式讀那些資料夾，iCloud 還會把截圖上傳；安裝程式會擋）。
+需要：macOS 12 以上、Apple 命令列工具（`xcode-select --install`；有在用 git 或 Homebrew 就已經有了）、Python 3.10 以上（`brew install python`；沒有管理員密碼的話先裝 [uv](https://docs.astral.sh/uv/)，安裝程式會自己下載 Python）、Claude Code／Codex CLI／Gemini CLI 其中之一。請 clone 到像 `~/desktop-sense` 這種地方，**不要**放在「文件」「桌面」「下載項目」或 iCloud 雲碟裡（macOS 不讓背景程式讀那些資料夾，iCloud 還會把截圖上傳；安裝程式會擋）。
 
 ```bash
 git clone https://github.com/angletech2026-arch/desktop-sense ~/desktop-sense
@@ -65,9 +65,11 @@ cd ~/desktop-sense
 ./install.sh
 ```
 
-裝好後到「系統設定 → 隱私權與安全性 → 螢幕錄製」把 Python 打開（用 uv 裝的會顯示成 `python3.12`），再執行 `ds restart`。沒開的話只能知道你在用哪個 App，看不到視窗標題、也不能截圖；`ds status` 會告訴你權限有沒有開，之後 macOS 收回權限時也會跳通知提醒（`brew upgrade python` 之後可能要重新授權）。
+裝好後到「系統設定 → 隱私權與安全性 → 螢幕與系統錄音」（舊版 macOS 叫「螢幕錄製」）把 **desktop-sense** 打開，再執行 `ds restart`。通常 macOS 會直接跳出來問；清單裡沒有的話，按 **＋** 選 `~/Applications/desktop-sense.app`。沒開的話只能知道你在用哪個 App，看不到視窗標題、也不能截圖；`ds status` 會告訴你權限有沒有開，之後 macOS 收回權限時也會跳通知提醒。
 
-Mac 上的無痕偵測：Chrome、Brave、Edge、Vivaldi、Opera 會直接問瀏覽器「最前面的視窗是不是無痕」（macOS 會問你一次 Python 能不能控制瀏覽器）。在你允許之前，以及 Safari、Arc（沒辦法從外部問），瀏覽器視窗一律**只記標題、不截圖**。隱私優先：判斷不了就不截。
+為什麼要一個 App：macOS 只把螢幕錄製權限給 App，一般的 Python 連加進清單都不行。所以安裝程式會在你的電腦上編一個很小的啟動程式 `~/Applications/desktop-sense.app`（原始碼 [`macos/launcher.c`](macos/launcher.c)），由它帶起 Python 的 daemon。只有原始碼改了才會重編，更新時不會害 macOS 又來問一次。
+
+Mac 上的無痕偵測：Chrome、Brave、Edge、Vivaldi、Opera 會直接問瀏覽器「最前面的視窗是不是無痕」（macOS 會問你一次 desktop-sense 能不能控制瀏覽器）。在你允許之前，以及 Safari、Arc（沒辦法從外部問），瀏覽器視窗一律**只記標題、不截圖**。隱私優先：判斷不了就不截。
 
 技術上用 Quartz 讀視窗、Apple 內建的 Vision 在本機做文字辨識，App 用 bundle id（例：`com.google.Chrome`）辨識，換系統語言規則也不會失效。Mac 版有在 macOS 上跑自動測試，但實際用過的人還不多，有問題請開 issue。
 

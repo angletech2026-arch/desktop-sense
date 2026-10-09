@@ -7,8 +7,8 @@ IS_MAC = sys.platform == "darwin"
 
 if IS_MAC:
     from .mac import (  # noqa: F401
-        IncognitoProbe, acquire_mutex, ensure_capture_permission, foreground, idle_seconds, pid_alive,
-        set_dpi_aware, window_rect,
+        IncognitoProbe, acquire_mutex, ensure_capture_permission, foreground, idle_seconds, permission_app_name,
+        pid_alive, set_dpi_aware, window_rect,
     )
 else:
     from .uia import IncognitoProbe  # noqa: F401
@@ -16,3 +16,6 @@ else:
 
     def ensure_capture_permission(log=print) -> bool:  # Windows 不需要額外授權
         return True
+
+    def permission_app_name() -> str:
+        return ""

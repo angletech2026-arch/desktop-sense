@@ -82,6 +82,30 @@ fi
 say "Installing dependencies..."
 "$ROOT/.venv/bin/python" -m pip install --disable-pip-version-check -q -r "$ROOT/requirements.txt"
 
+# --- 2b. desktop-sense.app --------------------------------------------------------
+# macOS grants Screen Recording to apps, and a plain Python can't even be added to that list, so the
+# daemon runs inside a tiny app built from macos/launcher.c. It's rebuilt only when its source changes:
+# every new build is a "different app" to macOS, which would ask for the permission again.
+APP="$HOME/Applications/desktop-sense.app"
+TARGET="desktop-sense"
+if xcode-select -p >/dev/null 2>&1; then
+  BUILD_ID="$(cat "$ROOT/macos/launcher.c" "$ROOT/macos/Info.plist" | shasum -a 256 | cut -c1-16)"
+  if [ "$(cat "$APP/Contents/Resources/build-id" 2>/dev/null)" != "$BUILD_ID" ] || [ ! -x "$APP/Contents/MacOS/desktop-sense" ]; then
+    say "Building ~/Applications/desktop-sense.app (the name macOS shows for the Screen Recording permission)..."
+    rm -rf "$APP"
+    mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+    cp "$ROOT/macos/Info.plist" "$APP/Contents/Info.plist"
+    cc -O2 -Wall -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 \
+       -o "$APP/Contents/MacOS/desktop-sense" "$ROOT/macos/launcher.c"
+    printf '%s\n' "$BUILD_ID" > "$APP/Contents/Resources/build-id"
+    codesign --force --sign - "$APP" >/dev/null 2>&1
+  fi
+else
+  TARGET="Python"
+  say "Note: Apple's command line tools aren't installed (xcode-select --install), so desktop-sense.app wasn't built"
+  say "and Screen Recording has to be granted to Python itself, which recent macOS versions may not allow."
+fi
+
 # --- 3. `ds` on PATH -----------------------------------------------------------
 chmod +x "$ROOT/bin/ds"
 mkdir -p "$HOME/.local/bin"
@@ -114,10 +138,14 @@ fi
 
 say ""
 say "Done. One more step - macOS needs your permission to see window titles and take screenshots:"
-say "  System Settings > Privacy & Security > Screen Recording > enable the entry for Python"
-say "  (macOS shows a prompt the first time; if you dismissed it, add it there), then run: ds restart"
-say "  'ds status' tells you if the permission is missing. After 'brew upgrade python' you may need to grant it again."
-say "The first time a Chrome-family browser is in front, macOS also asks whether Python may control it -"
+say "  System Settings > Privacy & Security > Screen & System Audio Recording (\"Screen Recording\" on older macOS)"
+say "  > turn on $TARGET, then run: ds restart"
+if [ "$TARGET" = "desktop-sense" ]; then
+  say "  macOS usually asks right away. If desktop-sense isn't in that list, click + and choose"
+  say "  ~/Applications/desktop-sense.app (Applications inside your home folder)."
+fi
+say "  'ds status' tells you if the permission is missing."
+say "The first time a Chrome-family browser is in front, macOS also asks whether $TARGET may control it -"
 say "that is how incognito windows are detected. Until you allow it, browser windows are title-only (no screenshots)."
 say ""
 say "Try:  ds status    ds now"

@@ -37,7 +37,10 @@ jobs:
           ds tail 30 || true
           tail -20 data/launchd.log 2>/dev/null || true
           grep -q "running, pid=" "$RUNNER_TEMP/status.txt"
-          launchctl print "gui/$(id -u)/io.angletech.desktop-sense" | grep -q "state = running"
+          launchctl print "gui/$(id -u)/io.angletech.desktop-sense" | tee "$RUNNER_TEMP/launchd.txt" | grep -q "state = running"
+          grep -q "desktop-sense.app/Contents/MacOS/desktop-sense" "$RUNNER_TEMP/launchd.txt"   # runs inside the helper app
+          codesign --verify "$HOME/Applications/desktop-sense.app"
           ./uninstall.sh --purge
           if launchctl print "gui/$(id -u)/io.angletech.desktop-sense" >/dev/null 2>&1; then echo "LaunchAgent still loaded"; exit 1; fi
           test ! -e "$HOME/Library/LaunchAgents/io.angletech.desktop-sense.plist"
+          test ! -e "$HOME/Applications/desktop-sense.app"

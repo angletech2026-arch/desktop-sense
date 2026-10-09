@@ -62,7 +62,7 @@ The installer creates a virtual environment, puts `ds` on your PATH, connects ev
 
 ### macOS (beta)
 
-Requirements: macOS 12+, Python 3.10+ (`brew install python` — or, if you have no admin password, install [uv](https://docs.astral.sh/uv/) and the installer downloads Python for you), and Claude Code / Codex CLI / Gemini CLI. Clone it somewhere like `~/desktop-sense` — **not** inside Documents, Desktop, Downloads or iCloud Drive (macOS blocks background apps there, and iCloud would upload your screenshots; the installer refuses those locations).
+Requirements: macOS 12+, Apple's command line tools (`xcode-select --install`; you already have them if you use git or Homebrew), Python 3.10+ (`brew install python` — or, if you have no admin password, install [uv](https://docs.astral.sh/uv/) and the installer downloads Python for you), and Claude Code / Codex CLI / Gemini CLI. Clone it somewhere like `~/desktop-sense` — **not** inside Documents, Desktop, Downloads or iCloud Drive (macOS blocks background apps there, and iCloud would upload your screenshots; the installer refuses those locations).
 
 ```bash
 git clone https://github.com/angletech2026-arch/desktop-sense ~/desktop-sense
@@ -70,9 +70,11 @@ cd ~/desktop-sense
 ./install.sh
 ```
 
-Then allow **Screen Recording** for Python (listed as `python3.12` if it came from uv; System Settings → Privacy & Security → Screen Recording) and run `ds restart`. Without it, desktop-sense still tracks which app you're in but can't read window titles or take screenshots — `ds status` tells you when the permission is missing, and the daemon notifies you if macOS revokes it later (after `brew upgrade python` you may need to grant it again).
+Then allow **Screen Recording** for **desktop-sense** (System Settings → Privacy & Security → Screen & System Audio Recording; just "Screen Recording" on older macOS) and run `ds restart`. macOS usually asks right away; if desktop-sense isn't in the list, click **+** and choose `~/Applications/desktop-sense.app`. Without the permission, desktop-sense still tracks which app you're in but can't read window titles or take screenshots — `ds status` tells you when it's missing, and the daemon notifies you if macOS revokes it later.
 
-Incognito on macOS: for Chrome, Brave, Edge, Vivaldi and Opera, desktop-sense asks the browser whether the front window is incognito (macOS asks you once whether Python may control the browser). Until that's allowed — and always for Safari and Arc, which can't be asked — browser windows are **title-only (no screenshots)**. Privacy first: if desktop-sense can't tell, it doesn't capture.
+Why an app: macOS only grants Screen Recording to apps — a plain Python can't even be added to that list — so the installer builds a tiny launcher, `~/Applications/desktop-sense.app` (source: [`macos/launcher.c`](macos/launcher.c), built on your machine), that runs the Python daemon. It's rebuilt only when its source changes, so updates don't make macOS ask again.
+
+Incognito on macOS: for Chrome, Brave, Edge, Vivaldi and Opera, desktop-sense asks the browser whether the front window is incognito (macOS asks you once whether desktop-sense may control the browser). Until that's allowed — and always for Safari and Arc, which can't be asked — browser windows are **title-only (no screenshots)**. Privacy first: if desktop-sense can't tell, it doesn't capture.
 
 Under the hood: windows are read with Quartz, text with Apple's on-device Vision OCR, and apps are identified by bundle id (e.g. `com.google.Chrome`), so rules don't break when your system language changes. The macOS version is covered by automated tests on macOS but hasn't been used by many people yet — please [open an issue](https://github.com/angletech2026-arch/desktop-sense/issues) if something's off.
 

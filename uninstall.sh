@@ -17,6 +17,13 @@ else
   echo "in ~/.claude/settings.json, ~/.codex/hooks.json, ~/.gemini/settings.json."
 fi
 
+# the helper app the daemon runs in, and the permissions macOS gave it
+if [ -d "$HOME/Applications/desktop-sense.app" ]; then
+  rm -rf "$HOME/Applications/desktop-sense.app"
+  tccutil reset ScreenCapture io.angletech.desktop-sense >/dev/null 2>&1 || true
+  tccutil reset AppleEvents io.angletech.desktop-sense >/dev/null 2>&1 || true
+fi
+
 if [ -L "$HOME/.local/bin/ds" ] && [ "$(readlink "$HOME/.local/bin/ds")" = "$ROOT/bin/ds" ]; then
   rm -f "$HOME/.local/bin/ds"
 fi

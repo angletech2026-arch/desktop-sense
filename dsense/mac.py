@@ -1,7 +1,8 @@
 """macOS：前景 App／視窗、視窗截圖、閒置時間、單一實例鎖、Chrome 系無痕偵測、通知。
 
-需要「螢幕錄製」權限（系統設定 → 隱私權與安全性 → 螢幕錄製）。macOS 是把權限記在「負責的行程」上：
-daemon 一律由 launchd（LaunchAgent）啟動，負責的就是 venv 的 python，授權給 Python 才有用。沒有權限時：
+需要「螢幕錄製」權限（系統設定 → 隱私權與安全性 → 螢幕與系統錄音）。macOS 是把權限記在「負責的 App」上，
+而且清單只收 App，加不進一般的 python：daemon 由 launchd 透過 ~/Applications/desktop-sense.app（macos/launcher.c）
+啟動，負責的就是這個 App，權限給 desktop-sense。沒有 Apple 命令列工具、建不出 App 時才退回給 python 本身。沒有權限時：
 - 視窗標題拿不到 → 用 App 名稱代替（時間線照常，只是看不到是哪個分頁／檔案）
 - 截圖拿不到 → 不存截圖（錯誤偵測與 AI 分析就沒有畫面可用）；`ds status` 會顯示權限狀態
 
@@ -18,6 +19,7 @@ import threading
 import time
 
 from .config import DATA
+from .i18n import L
 
 _LOCK_FD: int | None = None
 
@@ -50,6 +52,11 @@ def has_capture_permission() -> bool:
         return False
 
 
+def permission_app_name() -> str:
+    """系統設定裡要打開的那一項：跑在 desktop-sense.app 底下（launcher 會設這個環境變數）就是它，不然是 Python。"""
+    return "desktop-sense" if os.environ.get("DESKTOP_SENSE_APP") else "Python"
+
+
 def ensure_capture_permission(log=print) -> bool:
     """沒有螢幕錄製權限就請系統跳出授權視窗（系統只會跳一次；之後要使用者自己到系統設定打開）。"""
     if has_capture_permission():
@@ -58,8 +65,11 @@ def ensure_capture_permission(log=print) -> bool:
         _quartz().CGRequestScreenCaptureAccess()
     except (ImportError, AttributeError):
         pass
-    log("macOS screen recording permission is missing: titles fall back to app names and no screenshots are taken. "
-        "Enable Python in System Settings > Privacy & Security > Screen Recording, then run `ds restart`.")
+    app = permission_app_name()
+    log(L(f"沒有 macOS 螢幕錄製權限：標題改用 App 名稱、不截圖。到系統設定 → 隱私權與安全性 → 螢幕與系統錄音 打開 {app}，"
+          "再執行 ds restart。",
+          f"macOS screen recording permission is missing: titles fall back to app names and no screenshots are taken. "
+          f"Turn on {app} in System Settings > Privacy & Security > Screen & System Audio Recording, then run `ds restart`."))
     return False
 
 

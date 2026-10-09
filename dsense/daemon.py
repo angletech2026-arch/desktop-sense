@@ -24,7 +24,7 @@ from .ocr import Ocr
 from .privacy import Privacy, normalize_title
 from .research import build_research_prompt
 from .osapi import (IS_MAC, IncognitoProbe, acquire_mutex, ensure_capture_permission, foreground, idle_seconds,
-                    set_dpi_aware, window_rect)
+                    permission_app_name, set_dpi_aware, window_rect)
 from .store import Store
 
 MUTEX = "Local\\desktop_sense_daemon_v1"
@@ -212,9 +212,10 @@ class Daemon:
             self._last_perm_check = now
             ok = ensure_capture_permission(lambda m: None)
             if not ok and self._capture_ok:
-                toast("desktop-sense", L("螢幕錄製權限沒了：截圖已停止。到系統設定打開後執行 ds restart。",
+                app = permission_app_name()
+                toast("desktop-sense", L(f"螢幕錄製權限沒了：截圖已停止。到系統設定把 {app} 打開後執行 ds restart。",
                                          "Screen Recording permission is off: screenshots stopped. "
-                                         "Re-enable it in System Settings, then run ds restart."))
+                                         f"Turn {app} back on in System Settings, then run ds restart."))
             self._capture_ok = ok
         fg = foreground()
         if fg and not fg["minimized"] and fg["title"] != "":
@@ -658,6 +659,7 @@ class Daemon:
             "analyzer_backend": self.analyzer.describe(),
             "ocr": self.ocr is not None,
             "capture_permission": self._capture_ok,
+            "capture_app": permission_app_name() if IS_MAC else "",
             "calls_last_hour": len([t for t in self._call_times if now - t < 3600]),
         }
         self.store.write_json(self.store.state_path, state)

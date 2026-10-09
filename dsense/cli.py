@@ -162,9 +162,12 @@ def cmd_status(store: Store, cfg: dict, args) -> int:
     calls, cap = st.get('calls_last_hour', 0), cfg['analyzer']['max_calls_per_hour']
     print(L(f"本小時分析次數：{calls} / {cap}", f"analyses in the last hour: {calls} / {cap}"))
     if st.get("capture_permission") is False:
-        print(L("⚠ 沒有螢幕錄製權限：看不到視窗標題、不會截圖。系統設定 → 隱私權與安全性 → 螢幕錄製 → 打開 Python，再 ds restart",
-                "⚠ no Screen Recording permission: no window titles, no screenshots. System Settings > Privacy & Security > "
-                "Screen Recording > enable Python, then ds restart"))
+        app = st.get("capture_app") or "Python"
+        print(L(f"⚠ 沒有螢幕錄製權限：看不到視窗標題、不會截圖。系統設定 → 隱私權與安全性 → 螢幕與系統錄音 → 打開 {app}，"
+                "再 ds restart" + ("（清單裡沒有就按 ＋，選 ~/Applications/desktop-sense.app）" if app == "desktop-sense" else ""),
+                f"⚠ no Screen Recording permission: no window titles, no screenshots. System Settings > Privacy & Security > "
+                f"Screen & System Audio Recording > turn on {app}, then ds restart"
+                + (" (not listed? click + and choose ~/Applications/desktop-sense.app)" if app == "desktop-sense" else "")))
     if st.get("paused_until", 0) > time.time():
         print(L(f"⏸ 暫停到 {hm(st['paused_until'])}", f"⏸ paused until {hm(st['paused_until'])}"))
     cur = st.get("current")
@@ -614,12 +617,19 @@ def launch_agent_path() -> Path:
     return Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 
 
-def launch_agent_plist(python: str, ds_py: str, log_path: str, path_env: str, run_at_load: bool = True) -> bytes:
+def launcher_exe() -> Path:
+    """install.sh 建的 desktop-sense.app（macos/launcher.c）：macOS 只把螢幕錄製權限給「App」，
+    一般的 python 連加進系統設定的清單都不行，所以 daemon 跑在這個 App 底下。"""
+    return Path.home() / "Applications" / "desktop-sense.app" / "Contents" / "MacOS" / "desktop-sense"
+
+
+def launch_agent_plist(python: str, ds_py: str, log_path: str, path_env: str, run_at_load: bool = True,
+                       launcher: str | None = None) -> bytes:
     """macOS 登入時自動啟動 daemon 的 LaunchAgent。PATH 帶安裝當下的，daemon 才找得到 claude。"""
     import plistlib
     return plistlib.dumps({
         "Label": LAUNCH_LABEL,
-        "ProgramArguments": [python, ds_py, "daemon"],
+        "ProgramArguments": ([launcher] if launcher else []) + [python, ds_py, "daemon"],
         "RunAtLoad": run_at_load,
         "KeepAlive": False,
         "EnvironmentVariables": {"PATH": path_env},
@@ -628,12 +638,29 @@ def launch_agent_plist(python: str, ds_py: str, log_path: str, path_env: str, ru
     })
 
 
+def _launch_agent_bytes(store: Store, run_at_load: bool) -> bytes:
+    exe = launcher_exe()
+    return launch_agent_plist(_py(), str(ROOT / "ds.py"), str(store.root / "launchd.log"),
+                              os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"), run_at_load,
+                              str(exe) if exe.is_file() else None)
+
+
 def _write_launch_agent(store: Store, run_at_load: bool) -> Path:
     plist = launch_agent_path()
     plist.parent.mkdir(parents=True, exist_ok=True)
-    plist.write_bytes(launch_agent_plist(_py(), str(ROOT / "ds.py"), str(store.root / "launchd.log"),
-                                         os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"), run_at_load))
+    plist.write_bytes(_launch_agent_bytes(store, run_at_load))
     return plist
+
+
+def _launch_agent_outdated(store: Store, plist: Path) -> bool:
+    """舊的 LaunchAgent 直接跑 python（裝 desktop-sense.app 之前），或專案搬過家：要重寫才會用對的程式。"""
+    import plistlib
+    try:
+        cur = plistlib.loads(plist.read_bytes())
+    except Exception:
+        return True
+    want = plistlib.loads(_launch_agent_bytes(store, bool(cur.get("RunAtLoad"))))
+    return cur.get("ProgramArguments") != want["ProgramArguments"]
 
 
 def _launchd_reload(plist: Path) -> bool:
@@ -649,10 +676,18 @@ def _launchd_reload(plist: Path) -> bool:
 
 def _launchd_start(store: Store) -> None:
     """用 launchd 啟動 daemon（沒開自動啟動的話，LaunchAgent 設成登入時不自動跑，只拿來啟動這一次）。"""
+    import plistlib
     plist = launch_agent_path()
+    domain = f"gui/{os.getuid()}"
     if not plist.exists():
         plist = _write_launch_agent(store, run_at_load=False)
-    domain = f"gui/{os.getuid()}"
+    elif _launch_agent_outdated(store, plist):
+        try:
+            run_at_load = bool(plistlib.loads(plist.read_bytes()).get("RunAtLoad"))
+        except Exception:
+            run_at_load = False
+        plist = _write_launch_agent(store, run_at_load)
+        _launchd_reload(plist)
     if subprocess.run(["launchctl", "print", f"{domain}/{LAUNCH_LABEL}"], capture_output=True).returncode != 0:
         _launchd_reload(plist)
     subprocess.run(["launchctl", "kickstart", f"{domain}/{LAUNCH_LABEL}"], capture_output=True)

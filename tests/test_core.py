@@ -715,6 +715,18 @@ class MacLogicTest(unittest.TestCase):
         self.assertEqual(d["ProgramArguments"], ["/x/.venv/bin/python", "/x/ds.py", "daemon"])
         self.assertTrue(d["RunAtLoad"])
         self.assertIn("/opt/homebrew/bin", d["EnvironmentVariables"]["PATH"])  # daemon 才找得到 claude
+        # 有 desktop-sense.app 時由它當「負責的 App」把 python 帶起來（螢幕錄製權限才給得到）
+        app = "/Users/u/Applications/desktop-sense.app/Contents/MacOS/desktop-sense"
+        d = plistlib.loads(launch_agent_plist("/x/.venv/bin/python", "/x/ds.py", "/l", "/usr/bin", launcher=app))
+        self.assertEqual(d["ProgramArguments"], [app, "/x/.venv/bin/python", "/x/ds.py", "daemon"])
+
+    def test_permission_hint_names_the_app(self):
+        from unittest import mock
+        from dsense import mac
+        with mock.patch.dict("os.environ", {"DESKTOP_SENSE_APP": "1"}):
+            self.assertEqual(mac.permission_app_name(), "desktop-sense")
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(mac.permission_app_name(), "Python")
 
     def test_posix_hook_command(self):
         from unittest import mock
