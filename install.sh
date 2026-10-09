@@ -84,23 +84,34 @@ say "Installing dependencies..."
 
 # --- 2b. desktop-sense.app --------------------------------------------------------
 # macOS grants Screen Recording to apps, and a plain Python can't even be added to that list, so the
-# daemon runs inside a tiny app built from macos/launcher.c. It's rebuilt only when its source changes:
-# every new build is a "different app" to macOS, which would ask for the permission again.
+# daemon runs inside a tiny app built from macos/launcher.c. The app can only start this installation's
+# daemon (its path is compiled in), so nothing else can borrow the permission. It's rebuilt only when its
+# source or this folder's location changes: every new build is a "different app" to macOS, which would ask
+# for the permission again.
 APP="$HOME/Applications/desktop-sense.app"
 TARGET="desktop-sense"
 if xcode-select -p >/dev/null 2>&1; then
-  BUILD_ID="$(cat "$ROOT/macos/launcher.c" "$ROOT/macos/Info.plist" | shasum -a 256 | cut -c1-16)"
+  GEN="$(mktemp -d)"
+  "$ROOT/.venv/bin/python" -c 'import json, sys
+r = sys.argv[1]
+print("#define DS_PYTHON " + json.dumps(r + "/.venv/bin/python", ensure_ascii=False))
+print("#define DS_SCRIPT " + json.dumps(r + "/ds.py", ensure_ascii=False))' "$(cd "$ROOT" && pwd -P)" > "$GEN/ds_paths.h"
+  BUILD_ID="$(cat "$ROOT/macos/launcher.c" "$ROOT/macos/Info.plist" "$GEN/ds_paths.h" | shasum -a 256 | cut -c1-16)"
   if [ "$(cat "$APP/Contents/Resources/build-id" 2>/dev/null)" != "$BUILD_ID" ] || [ ! -x "$APP/Contents/MacOS/desktop-sense" ]; then
     say "Building ~/Applications/desktop-sense.app (the name macOS shows for the Screen Recording permission)..."
     rm -rf "$APP"
     mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
     cp "$ROOT/macos/Info.plist" "$APP/Contents/Info.plist"
-    cc -O2 -Wall -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 \
+    cc -O2 -Wall -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 -I "$GEN" \
        -o "$APP/Contents/MacOS/desktop-sense" "$ROOT/macos/launcher.c"
     printf '%s\n' "$BUILD_ID" > "$APP/Contents/Resources/build-id"
     codesign --force --sign - "$APP" >/dev/null 2>&1 \
       || say "Warning: couldn't sign desktop-sense.app; macOS may not keep its Screen Recording permission."
+    # a rebuilt app is new to macOS: clear the old entries so the permission prompts show up again
+    tccutil reset ScreenCapture io.angletech.desktop-sense >/dev/null 2>&1 || true
+    tccutil reset AppleEvents io.angletech.desktop-sense >/dev/null 2>&1 || true
   fi
+  rm -rf "$GEN"
 else
   TARGET="Python"
   say "Note: Apple's command line tools aren't installed (xcode-select --install), so desktop-sense.app wasn't built"
