@@ -54,7 +54,9 @@ class Daemon:
         self._last_minor_ts = 0.0
         self._dwell_shot_done = False
         self._seen_errs: dict[str, float] = {}
+        self._err_analyzed: dict[str, float] = {}  # 各錯誤上次觸發分析的時間
         self._last_err_call = 0.0
+        self._last_other_err_call = 0.0          # 終端機 / 編輯器以外的 App 上次因錯誤觸發分析的時間
         self._last_periodic = time.time()
         # 重啟後沿用最近一小時的呼叫次數，避免重啟就把每小時上限歸零
         self._call_times: list[float] = [r.get("ts", 0) for r in self.store.read_insights(0, since_ts=time.time() - 3600)]
@@ -412,6 +414,10 @@ class Daemon:
         return counts
 
     # ---------------- 錯誤偵測 ----------------
+    def _is_dev_app(self, app: str) -> bool:
+        """終端機 / 編輯器：畫面上的錯誤是使用者自己程式的輸出。瀏覽器、看圖、影片裡的「錯誤」多半是內容。"""
+        return app.lower() in {a.lower() for a in self.cfg["apps"]["terminal"] + self.cfg["apps"]["editor"]}
+
     def _on_errors(self, now: float, errs: list[str], shot_rel: str, appeared: list[str] | None = None) -> None:
         if self.cur is None:
             return
@@ -421,20 +427,33 @@ class Daemon:
             if now - self._seen_errs.get(k, 0) > 90:
                 fresh.append(e)
             self._seen_errs[k] = now
+        if len(self._seen_errs) > 2000:
+            self._seen_errs = {k: v for k, v in self._seen_errs.items() if now - v <= 90}
         if fresh:
             self.last_alert = {"ts": now, "app": self.cur["app"], "lines": fresh[:4], "shot": shot_rel}
             self.store.append_event({"type": "alert", "app": self.cur["app"], "lines": fresh[:4], "shot": shot_rel})
             self.log(L("偵測到錯誤：", "error detected: ") + " / ".join(fresh[:2])[:160])
+        dev = self._is_dev_app(self.cur["app"])
+        a = self.cfg["analyzer"]
+        # 只有這段時間內還沒分析過的錯誤才觸發分析（10-09：網頁上同一張宣傳圖的字，每次滑回來都被當成新錯誤）
+        new = [e for e in fresh if now - self._err_analyzed.get(line_key(e), float("-inf")) >= a["error_repeat_cooldown_s"]]
+        gap_ok = now - self._last_err_call >= a["error_min_gap_s"] and (
+            dev or now - self._last_other_err_call >= a["error_min_gap_other_apps_s"])
         # 先排分析再排搜尋：兩個共用一個工作佇列，搜尋排在前面的話，通知要多等一整次搜尋（實測多 17 秒）
-        if fresh and self.cfg["analyzer"]["enabled"] and self.analyzer.available() \
-                and now - self._last_err_call >= self.cfg["analyzer"]["error_min_gap_s"]:
+        if new and gap_ok and a["enabled"] and self.analyzer.available():
             self._last_err_call = now
-            self._enqueue(now, L(f"畫面出現錯誤：{fresh[0][:120]}", f"error on screen: {fresh[0][:120]}"),
+            if not dev:
+                self._last_other_err_call = now
+            for e in new:
+                self._err_analyzed[line_key(e)] = now
+            if len(self._err_analyzed) > 500:
+                self._err_analyzed = {k: v for k, v in self._err_analyzed.items()
+                                      if now - v < a["error_repeat_cooldown_s"]}
+            self._enqueue(now, L(f"畫面出現錯誤：{new[0][:120]}", f"error on screen: {new[0][:120]}"),
                           alert=self.last_alert)
         # 自動搜尋的「同一個錯誤第 N 次」看的是重新出現次數，不受上面 90 秒去重影響（重跑又失敗也要算）。
         # 只算終端機 / 編輯器：瀏覽器裡的「錯誤」可能是網頁故意顯示的，不能讓網頁觸發上網搜尋。
-        dev_apps = {a.lower() for a in self.cfg["apps"]["terminal"] + self.cfg["apps"]["editor"]}
-        if self.cur["app"].lower() in dev_apps:
+        if dev:
             self._count_error_hits(now, errs if appeared is None else appeared)
 
     def _count_error_hits(self, now: float, appeared: list[str]) -> None:
@@ -534,11 +553,7 @@ class Daemon:
             toast(L(f"desktop-sense：{res.get('doing','')[:60]}", f"desktop-sense: {res.get('doing','')[:60]}"), sug[:240])
         rc = self.cfg["research"]
         if rc["enabled"]:
-            la = self.last_alert
-            if rc["on_stuck"] and res.get("state") == "stuck" and la and now - la.get("ts", 0) < 900 \
-                    and la.get("lines"):
-                self._enqueue_research(time.time(), "error", "err:" + line_key(la["lines"][0]), la["lines"][0],
-                                       L("分析判斷卡住", "analysis says stuck"), ctx=res.get("doing", ""))
+            self._research_if_stuck(now, res)
             topic = (res.get("research_topic") or "").strip()
             if rc["similar_projects"] and topic:
                 key = "topic:" + " ".join(sorted(set(topic.lower().split())))[:120]
@@ -546,6 +561,16 @@ class Daemon:
                                        ctx=res.get("context", "") or res.get("doing", ""))
 
     # ---------------- 自動搜尋 ----------------
+    def _research_if_stuck(self, job_ts: float, res: dict) -> None:
+        """分析判斷「卡住」：拿最近 15 分鐘內的錯誤去搜。跟 _on_errors 一樣只認終端機 / 編輯器裡的錯誤，
+        網頁上的字不能觸發上網搜尋（10-09：Facebook 宣傳圖裡的「1 程式建置失敗」被拿去搜）。"""
+        la = self.last_alert
+        if not (self.cfg["research"]["on_stuck"] and res.get("state") == "stuck" and la and la.get("lines")):
+            return
+        if job_ts - la.get("ts", 0) < 900 and self._is_dev_app(la.get("app", "")):
+            self._enqueue_research(time.time(), "error", "err:" + line_key(la["lines"][0]), la["lines"][0],
+                                   L("分析判斷卡住", "analysis says stuck"), ctx=res.get("doing", ""))
+
     def _enqueue_research(self, now: float, kind: str, key: str, text: str, why: str, ctx: str = "") -> bool:
         """排一次自動搜尋；有排進去才回傳 True。冷卻從「成功搜到」才開始算，失敗 30 分鐘後可以再試。"""
         rc = self.cfg["research"]

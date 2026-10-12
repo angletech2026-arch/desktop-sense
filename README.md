@@ -16,7 +16,7 @@ desktop-sense is a small local daemon for Windows (macOS in beta) that tells Cla
 
 - **Live context on every prompt.** A hook adds a short, fenced block to each message: the window you're in, a timeline of the last 20 minutes, errors visible on screen and the latest screenshot path. Your assistant just *knows*.
 - **Token-thrifty.** Within one conversation it only sends what changed since your previous message. The first block is a few hundred to ~1,500 tokens depending on how busy your last 20 minutes were; follow-ups are usually under 200.
-- **Error radar.** Spots `Traceback`, `npm ERR!`, `error TS…`, failed builds and repeated commands on screen, and runs a quick background analysis (Haiku) with a fix suggestion and a Windows notification.
+- **Error radar.** Spots `Traceback`, `npm ERR!`, `error TS…`, failed builds and repeated commands on screen, and runs a quick background analysis (Haiku) with a fix suggestion and a Windows notification. The same error is analyzed at most once per 30 minutes, and errors seen in a browser or video (articles, demo clips) at most once per 30 minutes in total.
 - **Auto-research.** Hit the same error twice in your terminal or editor? desktop-sense searches **GitHub issues, Reddit and Stack Overflow** for it and hands you the most likely fix with links — usually before you've finished typing your question. Starting something new? It looks for **existing open-source projects** first, so you don't rebuild what's already out there.
 - **"Watch me" mode.** `ds stream` + Claude Code's Monitor tool = your assistant reacts to events as they happen.
 - **`/desk` skill + `ds` CLI** for timelines, screenshots, OCR text and analyses on demand.
@@ -158,7 +158,7 @@ LM Studio, llama.cpp and vLLM work too with `"backend": "openai"` (any OpenAI-co
 ## Cost
 
 - **Background analysis:** Haiku, about $0.002 per run; every 20 min while you're active plus on errors, capped at 12/hour — typically a few cents a day.
-- **Auto-research:** Sonnet + web search, only when an error repeats, when the analyzer thinks you are stuck, or when you start something new — capped at 8/day and $0.50 per search.
+- **Auto-research:** Sonnet + web search, only when an error repeats, when the analyzer thinks you are stuck, or when you start something new (errors count only from terminals and editors, never from web pages) — capped at 8/day and $0.50 per search.
 - With a Claude subscription these count against your plan's usage instead of being billed.
 - In fully local mode: $0.
 - A full day of normal use on our machine: 15 analyses + 2 searches ≈ US$0.19.

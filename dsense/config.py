@@ -192,6 +192,10 @@ DEFAULTS: dict = {
         "deep_model": "sonnet",
         "periodic_minutes": 20,
         "error_min_gap_s": 120,
+        # 終端機 / 編輯器以外（瀏覽器、看圖、影片…）畫面上的「錯誤」多半是文章或示範影片的內容：這類錯誤觸發的分析最多這麼久一次
+        "error_min_gap_other_apps_s": 1800,
+        # 同一個錯誤（同一行字）多久內只分析一次，不管在哪個 App；重複出現另外由自動搜尋計次
+        "error_repeat_cooldown_s": 1800,
         "max_calls_per_hour": 12,
         "send_images": True,
         "image_max_width": 1280,

@@ -508,6 +508,70 @@ class ReleaseTest(unittest.TestCase):
         d._count_error_hits(t + 2000, [])                 # 沒有新出現的錯誤：不動
         self.assertEqual(len(queued), 1)
 
+    @staticmethod
+    def _bare_daemon(app):
+        """不跑 __init__ 的 Daemon（不碰真的 data/、不開 log），記下排了幾次「錯誤觸發的分析」。"""
+        from types import SimpleNamespace
+        from dsense.daemon import Daemon
+        d = Daemon.__new__(Daemon)
+        d.cfg = json.loads(json.dumps(DEFAULTS))
+        d.cur = {"app": app, "title": "x", "norm": "x"}
+        d._seen_errs, d._err_analyzed, d._err_hits = {}, {}, {}
+        d._last_err_call = d._last_other_err_call = 0.0
+        d.last_alert = None
+        d.log = lambda *a, **k: None
+        d.store = SimpleNamespace(append_event=lambda ev: None)
+        d.analyzer = SimpleNamespace(available=lambda: True)
+        d.calls = []
+        d._enqueue = lambda now, trigger, alert=None, force=False: d.calls.append(now)
+        d._enqueue_research = lambda *a, **k: False
+        return d
+
+    def test_page_errors_dont_trigger_analysis_every_few_minutes(self):
+        # 10-09 晚上真的發生：在 FB / Threads / GitHub 看自己的宣傳圖和示範動畫，圖裡的錯誤字樣
+        # 每隔幾分鐘就被當成新錯誤，連續觸發十次分析和通知，撞到每小時上限
+        d = self._bare_daemon("chrome.exe")
+        t = 1_000_000.0
+        lines = ["1 程式建置失敗", "src/page.ts:5:35 - error Ts2339 : / Found 1 error in src/page • ts",
+                 "1 程式建置失敗", "Error: Exit COde 2", "1 程式建置失敗", "Found 1 error in src/page.ts"]
+        for i, line in enumerate(lines):
+            d._on_errors(t + i * 200, [line], "shot.jpg")  # 每 200 秒一次（超過 90 秒去重與 120 秒間隔）
+        self.assertEqual(len(d.calls), 1)                  # 網頁、看圖、影片裡的錯誤：30 分鐘內只分析一次
+        d._on_errors(t + 1900, ["TypeError: Cannot read properties of undefined"], "shot.jpg")
+        self.assertEqual(len(d.calls), 2)                  # 過了 30 分鐘、新的錯誤：照樣分析
+
+    def test_terminal_errors_analyzed_once_per_error(self):
+        d = self._bare_daemon("WindowsTerminal.exe")
+        t = 1_000_000.0
+        a = "src/a.ts(1,1): error TS2339: Property 'x' does not exist on type 'S'."
+        d._on_errors(t, [a], "s")
+        d._on_errors(t + 300, [a], "s")                    # 重跑又是同一個錯誤：不再分析一次（自動搜尋另外計次）
+        self.assertEqual(len(d.calls), 1)
+        d._on_errors(t + 400, ["src/b.ts(9,9): error TS2304: Cannot find name 'y'."], "s")
+        self.assertEqual(len(d.calls), 2)                  # 終端機裡新的錯誤：2 分鐘就能再分析
+        d._on_errors(t + 450, ["src/c.ts(2,2): error TS1005: ';' expected."], "s")
+        self.assertEqual(len(d.calls), 2)                  # 但兩次分析之間至少隔 error_min_gap_s
+        d._on_errors(t + 300 + 1800, [a], "s")
+        self.assertEqual(len(d.calls), 3)                  # 同一個錯誤過了 30 分鐘：可以再分析
+
+    def test_stuck_research_needs_a_terminal_or_editor_error(self):
+        # 10-09 23:25：分析判斷「卡住」，就拿 Facebook 宣傳圖裡的「1 程式建置失敗」去上網搜
+        d = self._bare_daemon("chrome.exe")
+        queued = []
+        d._enqueue_research = lambda now, kind, key, text, why, ctx="": queued.append(text) or True
+        t = time.time()
+        d.last_alert = {"ts": t, "app": "chrome.exe", "lines": ["1 程式建置失敗"], "shot": "s"}
+        d._research_if_stuck(t, {"state": "stuck", "doing": "x"})
+        self.assertEqual(queued, [])                       # 網頁上的字：不能觸發上網搜尋
+        d.last_alert = {"ts": t, "app": "WindowsTerminal.exe", "lines": ["npm ERR! code ELIFECYCLE"], "shot": "s"}
+        d._research_if_stuck(t, {"state": "ok"})
+        self.assertEqual(queued, [])                       # 沒卡住：不搜
+        d._research_if_stuck(t, {"state": "stuck", "doing": "x"})
+        self.assertEqual(queued, ["npm ERR! code ELIFECYCLE"])
+        d.last_alert = {"ts": t - 1000, "app": "WindowsTerminal.exe", "lines": ["old error"], "shot": "s"}
+        d._research_if_stuck(t, {"state": "stuck", "doing": "x"})
+        self.assertEqual(len(queued), 1)                   # 15 分鐘以前的錯誤：不算
+
     def test_research_line_keeps_safe_urls_only(self):
         line = digest.research_line({"ts": time.time(), "kind": "error", "summary": "fix it", "findings": [
             {"url": "https://github.com/vercel/next.js/issues/64031"},
@@ -599,6 +663,7 @@ class SecurityFixTest(unittest.TestCase):
         calls = []
         d._count_error_hits = lambda now, appeared: calls.append(appeared)
         d._seen_errs, d._last_err_call, d.last_alert = {}, 0.0, None
+        d._err_analyzed, d._last_other_err_call = {}, 0.0
         d.store = type("S", (), {"append_event": lambda self, ev: None})()
         d.analyzer = type("A", (), {"available": lambda self: False})()
         d.cur = {"app": "chrome.exe"}
