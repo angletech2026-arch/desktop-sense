@@ -57,6 +57,8 @@ desktop-sense 會讀你的螢幕，所以老實說清楚它防得到什麼、防
 | **Gemini CLI** | `BeforeAgent` hook（`~/.gemini/settings.json`） | 🧪 實驗性 |
 | **Muse Code** | `UserPromptSubmit` hook（`~/.config/muse/settings.json`） | ✅ 已在 Windows + Muse Code 1.4.6 實測；要先開過一次 `muse` 再跑 `ds setup muse`，已經開著的 Muse 要重開。macOS 還沒測 |
 
+Muse Code 的終端機標題沒有固定特徵，desktop-sense 目前還認不出那是 AI 自己的視窗，會像一般終端機一樣截圖、讀文字。
+
 背景分析與自動搜尋是透過 `claude` 指令（`claude -p`）執行，需要裝 Claude Code；hook 本身這幾種工具都能用。
 
 ## 安裝
@@ -164,7 +166,7 @@ LM Studio、llama.cpp、vLLM 用 `"backend": "openai"`（OpenAI 相容伺服器�
 
 - **Screenpipe** 會 24 小時錄下所有畫面和聲音，讓 AI 透過 MCP 去「搜尋」那些紀錄。desktop-sense 走相反的路線：把「現在的狀態」主動附進每則訊息，留的資料很少（截圖 48 小時就刪），敏感畫面直接不記錄，另外還有錯誤偵測和自動找解法。
 - **截圖類的 MCP 工具** 要等模型決定呼叫才拍一張。desktop-sense 在你問之前就已經準備好了，而且是一段時間線，不只是一張圖。
-- **OpenAI 的 [Computer History](https://learn.chatgpt.com/docs/customization/computer-history)**（原名 Chronicle）會把你在 Mac 上做的事整理成 ChatGPT 和 Codex 的記憶：操作紀錄會送到 OpenAI 的伺服器整理，而且要 Pro、Business 或 Enterprise 方案。desktop-sense 支援 Claude Code、Codex CLI、Gemini CLI、Muse Code，Windows 和 macOS 都能用，免費開源，紀錄存在你自己的電腦，而且是每則訊息都附上即時狀態，不是事後的記憶。
+- **OpenAI 的 [Computer History](https://learn.chatgpt.com/docs/customization/computer-history)**（原名 Chronicle）會把你在 Mac 上做的事整理成 ChatGPT 和 Codex 的記憶：操作紀錄會送到 OpenAI 的伺服器整理，而且要 Pro、Business 或 Enterprise 方案。desktop-sense 支援 Claude Code、Codex CLI、Gemini CLI、Muse Code，Windows 和 macOS 都能用（Muse Code 還沒在 macOS 測過），免費開源，紀錄存在你自己的電腦，而且是每則訊息都附上即時狀態，不是事後的記憶。
 
 ## 移除
 

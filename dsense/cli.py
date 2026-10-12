@@ -549,7 +549,7 @@ def cmd_setup(store: Store, cfg: dict, args) -> int:
     from .integrations import setup
     remove = "--remove" in args
     agents = [a.lower() for a in args if not a.startswith("--")]
-    for m in setup(Path.home(), agents or None, remove=remove):
+    for m in setup(Path.home(), agents or None, remove=remove, env=os.environ):
         print(m)
     return 0
 

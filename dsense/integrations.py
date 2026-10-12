@@ -11,6 +11,7 @@ import re
 import shutil
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 from .config import ROOT
@@ -84,6 +85,19 @@ def muse_command() -> str | None:
 def _muse_entry() -> dict | None:
     cmd = muse_command()
     return {"type": "command", "command": cmd, "timeout": 10} if cmd else None  # timeout 單位是秒，一定要整數
+
+
+def muse_config_dir(home: Path, env: Mapping[str, str] | None = None) -> Path:
+    """Muse 找設定檔的順序（1.4.6 實測）：$XDG_CONFIG_HOME/muse → $HOME/.config/muse → 家目錄/.config/muse。
+    Windows 上 Path.home() 不看 HOME，所以要自己查。env 是 None（測試用的假家目錄）就只看 home。"""
+    env = env or {}
+    xdg = (env.get("XDG_CONFIG_HOME") or "").strip()
+    if xdg and os.path.isabs(xdg):
+        return Path(xdg) / "muse"
+    h = (env.get("HOME") or "").strip()
+    if h and os.path.isabs(h):
+        return Path(h) / ".config" / "muse"
+    return home / ".config" / "muse"
 
 
 def _norm(s: str) -> str:
@@ -171,14 +185,25 @@ AGENTS = {
 LABELS = {"claude": "Claude Code", "codex": "Codex CLI", "gemini": "Gemini CLI", "muse": "Muse Code"}
 
 
-def detect(home: Path) -> list[str]:
-    return [name for name, (_f, _e, _h, d) in AGENTS.items() if (home / d).is_dir()]
+def _paths(name: str, home: Path, env: Mapping[str, str] | None) -> tuple[Path, Path]:
+    """(設定檔, 偵測用資料夾)。只有 Muse 的位置會隨環境變數變。"""
+    rel, _e, _h, d = AGENTS[name]
+    if name == "muse":
+        base = muse_config_dir(home, env)
+        return base / "settings.json", base
+    return home / rel, home / d
 
 
-def setup(home: Path, agents: list[str] | None = None, remove: bool = False) -> list[str]:
-    """接上（或 remove=True 拆掉）各工具的 hook。回傳給人看的訊息。"""
+def detect(home: Path, env: Mapping[str, str] | None = None) -> list[str]:
+    return [name for name in AGENTS if _paths(name, home, env)[1].is_dir()]
+
+
+def setup(home: Path, agents: list[str] | None = None, remove: bool = False,
+          env: Mapping[str, str] | None = None) -> list[str]:
+    """接上（或 remove=True 拆掉）各工具的 hook。回傳給人看的訊息。
+    env：真的環境變數（ds setup 傳 os.environ）；測試不傳，就只看 home，不會碰到真的設定。"""
     msgs: list[str] = []
-    targets = agents if agents else detect(home)
+    targets = agents if agents else detect(home, env)
     if not targets:
         msgs.append(L("沒偵測到 Claude Code / Codex / Gemini CLI / Muse Code（家目錄沒有 .claude / .codex / .gemini / .config/muse）。"
                       "裝好之後再跑一次 ds setup。",
@@ -190,9 +215,9 @@ def setup(home: Path, agents: list[str] | None = None, remove: bool = False) -> 
             msgs.append(L(f"不認得的工具：{name}（可用：claude、codex、gemini、muse）",
                           f"Unknown tool: {name} (choose from: claude, codex, gemini, muse)"))
             continue
-        rel, event, make, _d = AGENTS[name]
+        _rel, event, make, _d = AGENTS[name]
         label = LABELS[name]
-        path = home / rel
+        path = _paths(name, home, env)[0]
         data = _load(path)
         entry = None if remove else make()
         if not remove and entry is None:

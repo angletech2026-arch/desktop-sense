@@ -438,6 +438,25 @@ class ReleaseTest(unittest.TestCase):
             I.setup(home, ["muse"], remove=True)
             self.assertEqual(json.loads((cfg / "settings.json").read_text(encoding="utf-8")), orig)
 
+    def test_muse_config_dir_follows_muse(self):
+        from dsense import integrations as I
+        with tempfile.TemporaryDirectory() as d:
+            home, xdg, other = Path(d) / "home", Path(d) / "xdg", Path(d) / "other"
+            self.assertEqual(I.muse_config_dir(home), home / ".config" / "muse")  # 測試不傳 env：只看 home
+            self.assertEqual(I.muse_config_dir(home, {"XDG_CONFIG_HOME": str(xdg), "HOME": str(other)}), xdg / "muse")
+            self.assertEqual(I.muse_config_dir(home, {"HOME": str(other)}), other / ".config" / "muse")
+            self.assertEqual(I.muse_config_dir(home, {"XDG_CONFIG_HOME": "relative/dir"}), home / ".config" / "muse")
+            # 設了 XDG_CONFIG_HOME：Muse 讀那邊，家目錄底下舊的 settings.json 不能被當成裝好了
+            (xdg / "muse").mkdir(parents=True)
+            (xdg / "muse" / "settings.json").write_text('{"schema_version": 1}', encoding="utf-8")
+            (home / ".config" / "muse").mkdir(parents=True)
+            (home / ".config" / "muse" / "settings.json").write_text('{"schema_version": 1}', encoding="utf-8")
+            env = {"XDG_CONFIG_HOME": str(xdg)}
+            self.assertEqual(I.detect(home, env), ["muse"])
+            I.setup(home, ["muse"], env=env)
+            self.assertIn("hooks", json.loads((xdg / "muse" / "settings.json").read_text(encoding="utf-8")))
+            self.assertNotIn("hooks", json.loads((home / ".config" / "muse" / "settings.json").read_text(encoding="utf-8")))
+
     def test_muse_skips_quoted_command_on_windows(self):
         from unittest import mock
         from dsense import integrations as I
