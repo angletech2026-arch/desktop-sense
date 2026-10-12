@@ -17,7 +17,7 @@
   tail [n]                             印 daemon.log 末 n 行
   config                               印目前設定路徑與重點
   autostart [on|off]                   開機自動啟動（HKCU Run）
-  setup [claude|codex|gemini] [--remove]  接上 / 拆掉 AI 工具的 hook（不指定就自動偵測）
+  setup [claude|codex|gemini|muse] [--remove]  接上 / 拆掉 AI 工具的 hook（不指定就自動偵測）
   daemon                               前景執行 daemon（autostart 用）
 """
 from __future__ import annotations
@@ -56,7 +56,7 @@ Commands:
   tail [n]                             print the last n lines of daemon.log
   config                               show the config path and key settings
   autostart [on|off]                   start at login (HKCU Run)
-  setup [claude|codex|gemini] [--remove]  connect / disconnect AI coding tools (auto-detects by default)
+  setup [claude|codex|gemini|muse] [--remove]  connect / disconnect AI coding tools (auto-detects by default)
   daemon                               run the daemon in the foreground (used by autostart)
 """)
 
@@ -290,7 +290,7 @@ _SCREEN_REF = re.compile(r"畫面|螢幕|截圖|這個錯|這錯誤|這邊|這�
 
 
 def _hook_input() -> dict:
-    """hook 由 Claude Code / Codex / Gemini CLI 呼叫時，stdin 是一段 JSON；手動在終端機跑就不讀。"""
+    """hook 由 Claude Code / Codex / Gemini CLI / Muse Code 呼叫時，stdin 是一段 JSON；手動在終端機跑就不讀。"""
     import json
     try:
         if sys.stdin is None or sys.stdin.isatty():
@@ -327,7 +327,7 @@ def hook_since(store: Store, cfg: dict, session_id: str, prompt: str, now: float
 
 
 def cmd_hook(store: Store, cfg: dict, args) -> int:
-    """UserPromptSubmit（Claude Code / Codex）/ BeforeAgent（Gemini CLI）hook。
+    """UserPromptSubmit（Claude Code / Codex / Muse Code）/ BeforeAgent（Gemini CLI）hook。
     任何錯誤都安靜結束，絕不擋使用者的 prompt。"""
     import json
     data = _hook_input()
@@ -545,7 +545,7 @@ def cmd_research(store: Store, cfg: dict, args) -> int:
 
 
 def cmd_setup(store: Store, cfg: dict, args) -> int:
-    """接上 / 拆掉 AI 工具的 hook：ds setup [claude|codex|gemini ...] [--remove]（不指定就自動偵測）。"""
+    """接上 / 拆掉 AI 工具的 hook：ds setup [claude|codex|gemini|muse ...] [--remove]（不指定就自動偵測）。"""
     from .integrations import setup
     remove = "--remove" in args
     agents = [a.lower() for a in args if not a.startswith("--")]

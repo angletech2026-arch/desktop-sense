@@ -14,7 +14,7 @@ if [ -x "$PY" ]; then
 else
   echo "No .venv found, so the daemon, start-at-login entry and AI-tool hooks could not be removed automatically."
   echo "Remove by hand: ~/Library/LaunchAgents/io.angletech.desktop-sense.plist and the desktop-sense hook entries"
-  echo "in ~/.claude/settings.json, ~/.codex/hooks.json, ~/.gemini/settings.json."
+  echo "in ~/.claude/settings.json, ~/.codex/hooks.json, ~/.gemini/settings.json, ~/.config/muse/settings.json."
 fi
 
 # the helper app the daemon runs in, and the permissions macOS gave it

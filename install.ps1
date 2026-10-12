@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Installs desktop-sense: a Python virtual environment, the `ds` command,
-  hooks for Claude Code / Codex CLI / Gemini CLI, and start-at-login.
+  hooks for Claude Code / Codex CLI / Gemini CLI / Muse Code, and start-at-login.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\install.ps1

@@ -2,7 +2,7 @@
 
 **讓你的 AI 寫程式助手直接看得到你在做什麼。**
 
-desktop-sense 是一個在 Windows（macOS 測試版）背景執行的小程式。你每傳一則訊息給 Claude Code（或 Codex CLI、Gemini CLI），它就自動附上「你現在在哪個視窗、最近 20 分鐘做了什麼、畫面上有什麼錯誤」。不用再貼截圖、複製錯誤訊息，也不用解釋「我現在在瀏覽器看部署 log」。
+desktop-sense 是一個在 Windows（macOS 測試版）背景執行的小程式。你每傳一則訊息給 Claude Code（或 Codex CLI、Gemini CLI、Muse Code），它就自動附上「你現在在哪個視窗、最近 20 分鐘做了什麼、畫面上有什麼錯誤」。不用再貼截圖、複製錯誤訊息，也不用解釋「我現在在瀏覽器看部署 log」。
 
 ![建置失敗後，desktop-sense 自己發現畫面上的錯誤，Claude Code 不用截圖、不用貼錯誤就回答「why is this failing?」](docs/demo.gif)
 
@@ -55,14 +55,15 @@ desktop-sense 會讀你的螢幕，所以老實說清楚它防得到什麼、防
 | **Claude Code** | `UserPromptSubmit` hook + `/desk` skill | ✅ 天天在用 |
 | **Codex CLI** | `UserPromptSubmit` hook（`~/.codex/hooks.json`） | ✅ 已在 Windows + Codex CLI 0.161 實測；第一次要在 Codex 輸入 `/hooks` 設為信任 |
 | **Gemini CLI** | `BeforeAgent` hook（`~/.gemini/settings.json`） | 🧪 實驗性 |
+| **Muse Code** | `UserPromptSubmit` hook（`~/.config/muse/settings.json`） | ✅ 已在 Windows + Muse Code 1.4.6 實測；要先開過一次 `muse` 再跑 `ds setup muse`，已經開著的 Muse 要重開。macOS 還沒測 |
 
-背景分析與自動搜尋是透過 `claude` 指令（`claude -p`）執行，需要裝 Claude Code；hook 本身三種工具都能用。
+背景分析與自動搜尋是透過 `claude` 指令（`claude -p`）執行，需要裝 Claude Code；hook 本身這幾種工具都能用。
 
 ## 安裝
 
 ### Windows
 
-需要：Windows 10/11、Python 3.10 以上（`winget install Python.Python.3.12`）、Claude Code／Codex CLI／Gemini CLI 其中之一。
+需要：Windows 10/11、Python 3.10 以上（`winget install Python.Python.3.12`）、Claude Code／Codex CLI／Gemini CLI／Muse Code 其中之一。
 
 ```powershell
 git clone https://github.com/angletech2026-arch/desktop-sense
@@ -110,7 +111,7 @@ Mac 上的無痕偵測：Chrome、Brave、Edge、Vivaldi、Opera 會直接問瀏
 | `ds research --list` | 搜尋紀錄與連結 |
 | `ds stream` | 即時事件串流（給 Monitor 用） |
 | `ds pause 30` / `ds resume` | 暫停 / 恢復記錄 |
-| `ds setup [claude\|codex\|gemini] [--remove]` | 接上 / 拆掉 AI 工具 |
+| `ds setup [claude\|codex\|gemini\|muse] [--remove]` | 接上 / 拆掉 AI 工具 |
 
 ## 設定
 
@@ -163,7 +164,7 @@ LM Studio、llama.cpp、vLLM 用 `"backend": "openai"`（OpenAI 相容伺服器�
 
 - **Screenpipe** 會 24 小時錄下所有畫面和聲音，讓 AI 透過 MCP 去「搜尋」那些紀錄。desktop-sense 走相反的路線：把「現在的狀態」主動附進每則訊息，留的資料很少（截圖 48 小時就刪），敏感畫面直接不記錄，另外還有錯誤偵測和自動找解法。
 - **截圖類的 MCP 工具** 要等模型決定呼叫才拍一張。desktop-sense 在你問之前就已經準備好了，而且是一段時間線，不只是一張圖。
-- **OpenAI 的 [Computer History](https://learn.chatgpt.com/docs/customization/computer-history)**（原名 Chronicle）會把你在 Mac 上做的事整理成 ChatGPT 和 Codex 的記憶：操作紀錄會送到 OpenAI 的伺服器整理，而且要 Pro、Business 或 Enterprise 方案。desktop-sense 支援 Claude Code、Codex CLI、Gemini CLI，Windows 和 macOS 都能用，免費開源，紀錄存在你自己的電腦，而且是每則訊息都附上即時狀態，不是事後的記憶。
+- **OpenAI 的 [Computer History](https://learn.chatgpt.com/docs/customization/computer-history)**（原名 Chronicle）會把你在 Mac 上做的事整理成 ChatGPT 和 Codex 的記憶：操作紀錄會送到 OpenAI 的伺服器整理，而且要 Pro、Business 或 Enterprise 方案。desktop-sense 支援 Claude Code、Codex CLI、Gemini CLI、Muse Code，Windows 和 macOS 都能用，免費開源，紀錄存在你自己的電腦，而且是每則訊息都附上即時狀態，不是事後的記憶。
 
 ## 移除
 

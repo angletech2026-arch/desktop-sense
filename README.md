@@ -2,7 +2,7 @@
 
 **Your AI coding assistant can finally see what you're doing.**
 
-desktop-sense is a small local daemon for Windows (macOS in beta) that tells Claude Code (and Codex CLI / Gemini CLI) what's on your screen — automatically, on every message. No more pasting screenshots, copying error text, or explaining "I'm in the browser looking at the deploy log".
+desktop-sense is a small local daemon for Windows (macOS in beta) that tells Claude Code (and Codex CLI / Gemini CLI / Muse Code) what's on your screen — automatically, on every message. No more pasting screenshots, copying error text, or explaining "I'm in the browser looking at the deploy log".
 
 ![The build fails, desktop-sense spots the error on screen, and Claude Code answers "why is this failing?" with no screenshot or copy-paste](docs/demo.gif)
 
@@ -57,14 +57,15 @@ Found a security problem? Please [report it privately](https://github.com/anglet
 | **Claude Code** | `UserPromptSubmit` hook + `/desk` skill | ✅ daily-driven |
 | **Codex CLI** | `UserPromptSubmit` hook (`~/.codex/hooks.json`) | ✅ tested with Codex CLI 0.161 on Windows — run `/hooks` once in Codex to trust it |
 | **Gemini CLI** | `BeforeAgent` hook (`~/.gemini/settings.json`) | 🧪 experimental |
+| **Muse Code** | `UserPromptSubmit` hook (`~/.config/muse/settings.json`) | ✅ tested with Muse Code 1.4.6 on Windows — run `muse` once before `ds setup muse`, and restart any open Muse session. Not yet tested on macOS |
 
-The background analyzer and auto-research run through the `claude` CLI (`claude -p`), so they need Claude Code installed. The hook itself works with all three.
+The background analyzer and auto-research run through the `claude` CLI (`claude -p`), so they need Claude Code installed. The hook itself works with all of these tools.
 
 ## Install
 
 ### Windows
 
-Requirements: Windows 10/11, Python 3.10+ (`winget install Python.Python.3.12`), and Claude Code / Codex CLI / Gemini CLI.
+Requirements: Windows 10/11, Python 3.10+ (`winget install Python.Python.3.12`), and Claude Code / Codex CLI / Gemini CLI / Muse Code.
 
 ```powershell
 git clone https://github.com/angletech2026-arch/desktop-sense
@@ -112,7 +113,7 @@ Then just talk to your assistant:
 | `ds research --list` | past results with links |
 | `ds stream` | one line per notable event (for Claude Code's Monitor) |
 | `ds pause 30` / `ds resume` | pause / resume recording |
-| `ds setup [claude\|codex\|gemini] [--remove]` | connect / disconnect AI tools |
+| `ds setup [claude\|codex\|gemini\|muse] [--remove]` | connect / disconnect AI tools |
 | `ds config` | where the config and data live |
 
 ## Configuration
@@ -164,7 +165,7 @@ LM Studio, llama.cpp and vLLM work too with `"backend": "openai"` (any OpenAI-co
 
 - **Screenpipe** records everything 24/7 and lets your assistant *search* that history over MCP. desktop-sense is the opposite trade-off: it *pushes* only the current context into each message, keeps very little (screenshots expire after 48 h), drops sensitive screens instead of recording them, and adds error detection and auto-research.
 - **Screenshot MCP servers** take a picture when the model decides to call them. desktop-sense is already there before you ask, with a timeline, not just one frame.
-- **OpenAI's [Computer History](https://learn.chatgpt.com/docs/customization/computer-history)** (formerly Chronicle) builds memories for ChatGPT and Codex from what you do on your Mac. Interaction events are summarized on OpenAI's servers, and it needs a Pro, Business or Enterprise plan. desktop-sense works with Claude Code, Codex CLI and Gemini CLI on Windows and macOS, is free and open source, keeps its records on your machine, and gives your assistant live context with every message rather than memories.
+- **OpenAI's [Computer History](https://learn.chatgpt.com/docs/customization/computer-history)** (formerly Chronicle) builds memories for ChatGPT and Codex from what you do on your Mac. Interaction events are summarized on OpenAI's servers, and it needs a Pro, Business or Enterprise plan. desktop-sense works with Claude Code, Codex CLI, Gemini CLI and Muse Code on Windows and macOS, is free and open source, keeps its records on your machine, and gives your assistant live context with every message rather than memories.
 
 ## Uninstall
 

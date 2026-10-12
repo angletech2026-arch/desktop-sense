@@ -407,6 +407,54 @@ class ReleaseTest(unittest.TestCase):
             self.assertTrue(any("⚠" in m for m in msgs))
             self.assertEqual((home / ".gemini" / "settings.json").read_text(encoding="utf-8"), bad)
 
+    def test_setup_muse(self):
+        from dsense import integrations as I
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            cfg = home / ".config" / "muse"
+            cfg.mkdir(parents=True)
+            self.assertEqual(I.detect(home), ["muse"])
+            # Muse 還沒建 settings.json：不能從零建（少了 schema_version，整個 Muse 會打不開）
+            msgs = I.setup(home, ["muse"])
+            self.assertTrue(any("⚠" in m for m in msgs), msgs)
+            self.assertFalse((cfg / "settings.json").exists())
+            orig = {"schema_version": 1, "provider": "meta", "model": "muse-spark-1.3", "contributor_mode_enabled": True,
+                    "hooks": {"PreToolUse": [{"matcher": "shell", "hooks": [{"type": "command", "command": "echo mine"}]}]}}
+            (cfg / "settings.json").write_text(json.dumps(orig), encoding="utf-8")
+            msgs = I.setup(home, ["muse"])
+            self.assertTrue(any("contributor" in m for m in msgs), msgs)  # 提醒：Meta 可能拿去訓練
+            s = json.loads((cfg / "settings.json").read_text(encoding="utf-8"))
+            self.assertEqual(s["schema_version"], 1)
+            self.assertEqual(s["hooks"]["PreToolUse"], orig["hooks"]["PreToolUse"])  # 別人的 hook 不動
+            [h] = [h for g in s["hooks"]["UserPromptSubmit"] for h in g["hooks"]]
+            self.assertEqual(set(h), {"type", "command", "timeout"})  # Muse 不認得的欄位會讓整筆 hook 被略過
+            self.assertIsInstance(h["timeout"], int)                   # 字串也會被略過
+            self.assertTrue(I.is_ours(h["command"]))
+            if os.name == "nt":
+                self.assertNotIn('"', h["command"])  # Muse 會把雙引號轉成 \"，cmd.exe 看不懂
+            I.setup(home, ["muse"])  # 再跑一次：不重複
+            s = json.loads((cfg / "settings.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(s["hooks"]["UserPromptSubmit"]), 1)
+            I.setup(home, ["muse"], remove=True)
+            self.assertEqual(json.loads((cfg / "settings.json").read_text(encoding="utf-8")), orig)
+
+    def test_muse_skips_quoted_command_on_windows(self):
+        from unittest import mock
+        from dsense import integrations as I
+        quoted = '"C:/a b/python.exe" "C:/a b/ds.py" hook'
+        with mock.patch.object(I, "claude_command", return_value=quoted), mock.patch.object(I.os, "name", "nt"):
+            self.assertIsNone(I.muse_command())
+            with tempfile.TemporaryDirectory() as d:
+                cfg = Path(d) / ".config" / "muse"
+                cfg.mkdir(parents=True)
+                (cfg / "settings.json").write_text('{"schema_version": 1}', encoding="utf-8")
+                msgs = I.setup(Path(d), ["muse"])
+                self.assertTrue(any("⚠" in m for m in msgs), msgs)
+                self.assertEqual((cfg / "settings.json").read_text(encoding="utf-8"), '{"schema_version": 1}')
+        with mock.patch.object(I, "claude_command", return_value='"/a b/python" "/a b/ds.py" hook'), \
+                mock.patch.object(I.os, "name", "posix"):
+            self.assertEqual(I.muse_command(), '"/a b/python" "/a b/ds.py" hook')  # macOS / Linux 用 sh，引號沒問題
+
     def test_is_ours(self):
         from dsense.integrations import claude_command, is_ours, shim_command
         for yes in (claude_command(), shim_command(), "ds.cmd hook", "ds hook"):

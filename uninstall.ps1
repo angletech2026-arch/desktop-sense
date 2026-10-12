@@ -21,7 +21,7 @@ if (Test-Path $VenvPy) {
 } else {
     Write-Host "No .venv found, so the daemon, autostart entry and AI-tool hooks could not be removed automatically." -ForegroundColor Yellow
     Write-Host "Remove them by hand: the 'desktop-sense' value under HKCU\Software\Microsoft\Windows\CurrentVersion\Run," -ForegroundColor Yellow
-    Write-Host "and the desktop-sense hook entries in ~/.claude/settings.json, ~/.codex/hooks.json, ~/.gemini/settings.json." -ForegroundColor Yellow
+    Write-Host "and the desktop-sense hook entries in ~/.claude/settings.json, ~/.codex/hooks.json, ~/.gemini/settings.json, ~/.config/muse/settings.json." -ForegroundColor Yellow
 }
 
 $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)

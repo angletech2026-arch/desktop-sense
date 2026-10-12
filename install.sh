@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # desktop-sense installer for macOS: virtual environment, the `ds` command,
-# hooks for Claude Code / Codex CLI / Gemini CLI, and start-at-login.
+# hooks for Claude Code / Codex CLI / Gemini CLI / Muse Code, and start-at-login.
 #   ./install.sh                 # everything
 #   ./install.sh --no-autostart --no-hooks
 set -euo pipefail

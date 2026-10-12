@@ -1,4 +1,4 @@
-"""把 desktop-sense 接到 AI 寫程式工具：Claude Code（hook + /desk skill）、Codex CLI、Gemini CLI。
+"""把 desktop-sense 接到 AI 寫程式工具：Claude Code（hook + /desk skill）、Codex CLI、Gemini CLI、Muse Code。
 
 只改使用者家目錄底下這幾個工具自己的設定檔；改之前先備份；只動我們自己那一筆 hook（靠指令內容辨識），
 別人的 hook 一律不碰。設定檔不是合法 JSON 就不改，印出手動加的方法。
@@ -72,6 +72,18 @@ def shim_command() -> str:
     if short and not _SHELL_UNSAFE.search(short):
         return f"{short} hook"
     return f'"{launcher}" hook'  # 最後手段：cmd / bash 吃得下，PowerShell 不行
+
+
+def muse_command() -> str | None:
+    """Muse Code 在 Windows 用 cmd.exe 跑 hook，而且會把指令裡的雙引號轉成 \\"（cmd 看不懂，整條失敗）。
+    所以只能用 claude_command 那種不加引號的寫法；非加引號不可（路徑有空白又沒有 8.3 短路徑）→ None。"""
+    cmd = claude_command()
+    return None if os.name == "nt" and '"' in cmd else cmd
+
+
+def _muse_entry() -> dict | None:
+    cmd = muse_command()
+    return {"type": "command", "command": cmd, "timeout": 10} if cmd else None  # timeout 單位是秒，一定要整數
 
 
 def _norm(s: str) -> str:
@@ -153,7 +165,10 @@ AGENTS = {
                        "statusMessage": "desktop-sense"}, ".codex"),
     "gemini": (Path(".gemini") / "settings.json", "BeforeAgent",
                lambda: {"type": "command", "command": shim_command(), "name": "desktop-sense", "timeout": 5000}, ".gemini"),
+    # Muse 不認得的欄位會讓那筆 hook 被略過，所以只放 type / command / timeout
+    "muse": (Path(".config") / "muse" / "settings.json", "UserPromptSubmit", _muse_entry, ".config/muse"),
 }
+LABELS = {"claude": "Claude Code", "codex": "Codex CLI", "gemini": "Gemini CLI", "muse": "Muse Code"}
 
 
 def detect(home: Path) -> list[str]:
@@ -165,20 +180,34 @@ def setup(home: Path, agents: list[str] | None = None, remove: bool = False) -> 
     msgs: list[str] = []
     targets = agents if agents else detect(home)
     if not targets:
-        msgs.append(L("沒偵測到 Claude Code / Codex / Gemini CLI（家目錄沒有 .claude / .codex / .gemini）。"
+        msgs.append(L("沒偵測到 Claude Code / Codex / Gemini CLI / Muse Code（家目錄沒有 .claude / .codex / .gemini / .config/muse）。"
                       "裝好之後再跑一次 ds setup。",
-                      "No Claude Code / Codex / Gemini CLI found (no .claude / .codex / .gemini in your home folder). "
-                      "Run `ds setup` again after installing one."))
+                      "No Claude Code / Codex / Gemini CLI / Muse Code found (no .claude / .codex / .gemini / .config/muse "
+                      "in your home folder). Run `ds setup` again after installing one."))
         return msgs
     for name in targets:
         if name not in AGENTS:
-            msgs.append(L(f"不認得的工具：{name}（可用：claude、codex、gemini）",
-                          f"Unknown tool: {name} (choose from: claude, codex, gemini)"))
+            msgs.append(L(f"不認得的工具：{name}（可用：claude、codex、gemini、muse）",
+                          f"Unknown tool: {name} (choose from: claude, codex, gemini, muse)"))
             continue
         rel, event, make, _d = AGENTS[name]
+        label = LABELS[name]
         path = home / rel
         data = _load(path)
         entry = None if remove else make()
+        if not remove and entry is None:
+            msgs.append(L(f"⚠ {label}：desktop-sense 的路徑有空白或特殊字元，又沒有 8.3 短路徑，{label} 跑不了這個 hook，沒有修改。"
+                          "把 desktop-sense 放到路徑沒有空白的資料夾再跑一次 ds setup。",
+                          f"⚠ {label}: the desktop-sense path has spaces or special characters and no 8.3 short name, "
+                          f"so {label} can't run the hook; left untouched. Move desktop-sense to a folder without spaces "
+                          "and run `ds setup` again."))
+            continue
+        # Muse 的 settings.json 少了 schema_version 整個 Muse 會打不開：只改 Muse 自己建好的檔，絕不從零建
+        if name == "muse" and not remove and isinstance(data, dict) and "schema_version" not in data:
+            msgs.append(L(f"⚠ {label}：{path} 還沒由 Muse 建好（或少了 schema_version），沒有修改。先執行一次 muse，再跑 ds setup muse。",
+                          f"⚠ {label}: {path} hasn't been created by Muse yet (or has no schema_version); left untouched. "
+                          "Run muse once, then `ds setup muse`."))
+            continue
         if data is None:
             msgs.append(L(f"⚠ {path} 不是合法 JSON，沒有修改。請手動在 hooks.{event} 加入：{json.dumps(entry, ensure_ascii=False)}",
                           f"⚠ {path} is not valid JSON; left untouched. Add this under hooks.{event} by hand: "
@@ -191,7 +220,6 @@ def setup(home: Path, agents: list[str] | None = None, remove: bool = False) -> 
             continue
         if changed:
             _save(path, data)
-        label = {"claude": "Claude Code", "codex": "Codex CLI", "gemini": "Gemini CLI"}[name]
         if remove:
             msgs.append(L(f"✓ {label}：已移除 hook（{path}）", f"✓ {label}: hook removed ({path})") if changed
                         else L(f"・{label}：本來就沒有 hook", f"・{label}: no hook to remove"))
@@ -204,6 +232,15 @@ def setup(home: Path, agents: list[str] | None = None, remove: bool = False) -> 
                           "  → In Codex, run /hooks once and trust the desktop-sense hook (one-time)."))
         if name == "gemini" and not remove:
             msgs.append(L("  → Gemini CLI 支援是實驗性的。", "  → Gemini CLI support is experimental."))
+        if name == "muse" and not remove:
+            msgs.append(L("  → 已經開著的 Muse 要關掉重開才會載入（hook 只在開新 session 時讀）。",
+                          "  → Restart any open Muse session to load it (hooks are read when a session starts)."))
+            if data.get("contributor_mode_enabled") is True:
+                msgs.append(L("  ⚠ 你的 Muse 開著 contributor mode：每則訊息（包括 desktop-sense 附上的螢幕摘要）都可能被 Meta "
+                              "拿去訓練模型。不想的話在 Muse 裡打 /settings，把 contributor training data 關掉。",
+                              "  ⚠ Muse has contributor mode on: every message, including the screen summary desktop-sense "
+                              "adds, may be used by Meta to train models. To opt out, run /settings in Muse and turn off "
+                              "contributor training data."))
     return msgs
 
 
