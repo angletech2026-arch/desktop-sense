@@ -56,8 +56,11 @@ desktop-sense 會讀你的螢幕，所以老實說清楚它防得到什麼、防
 | **Codex CLI** | `UserPromptSubmit` hook（`~/.codex/hooks.json`） | ✅ 已在 Windows + Codex CLI 0.161 實測；第一次要在 Codex 輸入 `/hooks` 設為信任 |
 | **Gemini CLI** | `BeforeAgent` hook（`~/.gemini/settings.json`） | 🧪 實驗性 |
 | **Muse Code** | `UserPromptSubmit` hook（`~/.config/muse/settings.json`） | ✅ 已在 Windows + Muse Code 1.4.6 實測；要先開過一次 `muse` 再跑 `ds setup muse`，已經開著的 Muse 要重開。macOS 還沒測 |
+| **Grok Bot** | 只有 `desk` skill（`~/.cursor/skills/desk/SKILL.md`，用 `ds setup grok` 裝） | 🧪 半自動，已在 Windows 實測：不會每則訊息自動附上；跟它說「看一下我的畫面」，它會去讀 desktop-sense |
 
 Muse Code 的終端機標題沒有固定特徵，desktop-sense 目前還認不出那是 AI 自己的視窗，會像一般終端機一樣截圖、讀文字。
+
+Grok Bot 不會執行你自己設的 hook（我們實測它不理 `~/.cursor/hooks.json`），所以只有你叫它看的時候才會拿到畫面。你問它畫面的事時，Grok Bot 也可能自己截整個螢幕送上雲端，那張截圖不會套用 desktop-sense 的隱私規則。skill 有叫它改讀 desktop-sense，但那只是指示、不是保證：畫面上有隱私內容時，別叫它看畫面。
 
 背景分析與自動搜尋是透過 `claude` 指令（`claude -p`）執行，需要裝 Claude Code；hook 本身這幾種工具都能用。
 
@@ -113,7 +116,7 @@ Mac 上的無痕偵測：Chrome、Brave、Edge、Vivaldi、Opera 會直接問瀏
 | `ds research --list` | 搜尋紀錄與連結 |
 | `ds stream` | 即時事件串流（給 Monitor 用） |
 | `ds pause 30` / `ds resume` | 暫停 / 恢復記錄 |
-| `ds setup [claude\|codex\|gemini\|muse] [--remove]` | 接上 / 拆掉 AI 工具 |
+| `ds setup [claude\|codex\|gemini\|muse\|grok] [--remove]` | 接上 / 拆掉 AI 工具（Grok Bot 要寫 grok 才會裝） |
 
 ## 設定
 

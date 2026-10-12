@@ -58,8 +58,11 @@ Found a security problem? Please [report it privately](https://github.com/anglet
 | **Codex CLI** | `UserPromptSubmit` hook (`~/.codex/hooks.json`) | ✅ tested with Codex CLI 0.161 on Windows — run `/hooks` once in Codex to trust it |
 | **Gemini CLI** | `BeforeAgent` hook (`~/.gemini/settings.json`) | 🧪 experimental |
 | **Muse Code** | `UserPromptSubmit` hook (`~/.config/muse/settings.json`) | ✅ tested with Muse Code 1.4.6 on Windows — run `muse` once before `ds setup muse`, and restart any open Muse session. Not yet tested on macOS |
+| **Grok Bot** | `desk` skill only (`~/.cursor/skills/desk/SKILL.md`, installed by `ds setup grok`) | 🧪 semi-automatic, tested on Windows — no context on every message; say "look at my screen" and it reads desktop-sense |
 
 desktop-sense can't yet tell Muse Code's own terminal window from other terminals (its title has no fixed marker), so that window is captured and read like any other terminal.
+
+Grok Bot doesn't run hooks you set up yourself (it ignored `~/.cursor/hooks.json` in our tests), so it only gets your screen when you ask. When you ask about your screen, Grok Bot can also take its own full-screen screenshot and send it to the cloud, and that screenshot skips desktop-sense's privacy rules. The skill tells it to read desktop-sense instead, but that's an instruction, not a guarantee: don't ask it about your screen while something private is showing.
 
 The background analyzer and auto-research run through the `claude` CLI (`claude -p`), so they need Claude Code installed. The hook itself works with all of these tools.
 
@@ -115,7 +118,7 @@ Then just talk to your assistant:
 | `ds research --list` | past results with links |
 | `ds stream` | one line per notable event (for Claude Code's Monitor) |
 | `ds pause 30` / `ds resume` | pause / resume recording |
-| `ds setup [claude\|codex\|gemini\|muse] [--remove]` | connect / disconnect AI tools |
+| `ds setup [claude\|codex\|gemini\|muse\|grok] [--remove]` | connect / disconnect AI tools (Grok Bot only when you name it) |
 | `ds config` | where the config and data live |
 
 ## Configuration

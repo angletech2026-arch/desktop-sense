@@ -1,4 +1,5 @@
-"""把 desktop-sense 接到 AI 寫程式工具：Claude Code（hook + /desk skill）、Codex CLI、Gemini CLI、Muse Code。
+"""把 desktop-sense 接到 AI 寫程式工具：Claude Code（hook + /desk skill）、Codex CLI、Gemini CLI、Muse Code，
+以及只能裝 skill 的 Grok Bot（它不跑使用者設的 hook，要使用者叫它看畫面才會去讀）。
 
 只改使用者家目錄底下這幾個工具自己的設定檔；改之前先備份；只動我們自己那一筆 hook（靠指令內容辨識），
 別人的 hook 一律不碰。設定檔不是合法 JSON 就不改，印出手動加的方法。
@@ -18,6 +19,7 @@ from .config import ROOT
 from .i18n import L
 
 SKILL_SRC = ROOT / "skills" / "desk" / "SKILL.md"
+GROK_SKILL_SRC = ROOT / "skills" / "grok" / "SKILL.md"  # 範本：{{DS}} 換成這個安裝位置的 ds 絕對路徑
 # 舊版裝過的、沒有路徑的寫法（只認完全相同的字串）
 _LEGACY = {"ds.cmd hook", "ds hook"}
 
@@ -73,6 +75,25 @@ def shim_command() -> str:
     if short and not _SHELL_UNSAFE.search(short):
         return f"{short} hook"
     return f'"{launcher}" hook'  # 最後手段：cmd / bash 吃得下，PowerShell 不行
+
+
+def _launcher_for(path: str, windows: bool, short: str | None = None) -> str:
+    """給 AI 自己在 shell 裡跑的 ds 路徑（後面接子指令）。Grok Bot 在 Windows 用 PowerShell 跑指令：
+    沒有空白就直接寫路徑（cmd / PowerShell 都吃）；有空白先換 8.3 短路徑，再不行才用 PowerShell 的 & "…"。"""
+    if not windows:
+        return '"' + path.replace('"', '\\"') + '"'
+    if not _SHELL_UNSAFE.search(path):
+        return path
+    if short and not _SHELL_UNSAFE.search(short):
+        return short
+    return f'& "{path}"'
+
+
+def ds_launcher() -> str:
+    if os.name != "nt":
+        return _launcher_for(str(ROOT / "bin" / "ds"), False)
+    path = str(ROOT / "bin" / "ds.cmd")
+    return _launcher_for(path, True, _short_path(path) if _SHELL_UNSAFE.search(path) else None)
 
 
 def muse_command() -> str | None:
@@ -211,9 +232,12 @@ def setup(home: Path, agents: list[str] | None = None, remove: bool = False,
                       "in your home folder). Run `ds setup` again after installing one."))
         return msgs
     for name in targets:
+        if name == "grok":  # 只裝 skill，不在自動偵測裡（有 .cursor 也可能只是 Cursor 編輯器）
+            msgs += _grok_skill(home, remove)
+            continue
         if name not in AGENTS:
-            msgs.append(L(f"不認得的工具：{name}（可用：claude、codex、gemini、muse）",
-                          f"Unknown tool: {name} (choose from: claude, codex, gemini, muse)"))
+            msgs.append(L(f"不認得的工具：{name}（可用：claude、codex、gemini、muse、grok）",
+                          f"Unknown tool: {name} (choose from: claude, codex, gemini, muse, grok)"))
             continue
         _rel, event, make, _d = AGENTS[name]
         label = LABELS[name]
@@ -288,3 +312,38 @@ def _skill(home: Path, remove: bool) -> list[str]:
         shutil.copy2(dst, dst.with_name(f"SKILL.md.bak-desktop-sense-{time.strftime('%Y%m%d-%H%M%S')}"))
     shutil.copy2(SKILL_SRC, dst)
     return [L("✓ 已安裝 /desk skill", "✓ /desk skill installed")]
+
+
+def _grok_skill(home: Path, remove: bool) -> list[str]:
+    """Grok Bot（Cursor 做的）讀 ~/.cursor/skills；它不跑使用者設的 hook（實測 ~/.cursor/hooks.json 沒被執行），
+    所以只能裝 skill：使用者叫它看畫面時，它照 skill 跑 ds now，而不是自己截一張沒遮隱私的全螢幕。"""
+    dst = home / ".cursor" / "skills" / "desk" / "SKILL.md"
+    ours = dst.exists() and "desktop-sense" in dst.read_text(encoding="utf-8", errors="replace")
+    if remove:
+        if not ours:
+            return [L("・Grok Bot：本來就沒有 desk skill", "・Grok Bot: no desk skill to remove")]
+        dst.unlink()  # 只刪我們的 SKILL.md；資料夾裡別的東西（含備份）不動
+        try:
+            dst.parent.rmdir()
+        except OSError:
+            pass
+        return [L("✓ Grok Bot：已移除 desk skill", "✓ Grok Bot: desk skill removed")]
+    if not GROK_SKILL_SRC.exists():
+        return [L(f"⚠ 找不到 {GROK_SKILL_SRC}，略過 Grok Bot", f"⚠ {GROK_SKILL_SRC} not found; skipping Grok Bot")]
+    text = GROK_SKILL_SRC.read_text(encoding="utf-8").replace("{{DS}}", ds_launcher())
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists() and not ours:  # 同名但不是我們的 skill：先備份
+        shutil.copy2(dst, dst.with_name(f"SKILL.md.bak-desktop-sense-{time.strftime('%Y%m%d-%H%M%S')}"))
+    tmp = dst.with_name("SKILL.md.dsense.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, dst)
+    return [L(f"✓ Grok Bot：已安裝 desk skill（{dst}）", f"✓ Grok Bot: desk skill installed ({dst})"),
+            L("  → Grok Bot 不會每則訊息自動附上畫面：要它看的時候說「看一下我的畫面」，它會去讀 desktop-sense。"
+              "沒反應的話開一個新對話再試。",
+              "  → Grok Bot doesn't get context on every message: say \"look at my screen\" and it reads desktop-sense. "
+              "If it doesn't, start a new chat and try again."),
+            L("  ⚠ 這只是給 Grok 的指示：沒用到這個 skill 時，它可能自己截整個螢幕送上雲端，那張截圖不會遮掉密碼、網銀這類畫面。"
+              "畫面上有隱私內容時，別叫它看畫面。",
+              "  ⚠ This is only an instruction to Grok: without the skill it may take its own full-screen screenshot and "
+              "send it to the cloud, and that screenshot doesn't hide password managers or banking pages. Don't ask it "
+              "to look at your screen while something private is showing.")]

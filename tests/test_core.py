@@ -476,6 +476,42 @@ class ReleaseTest(unittest.TestCase):
                 mock.patch.object(I.os, "name", "posix"):
             self.assertEqual(I.muse_command(), '"/a b/python" "/a b/ds.py" hook')  # macOS / Linux 用 sh，引號沒問題
 
+    def test_setup_grok_skill(self):
+        from dsense import integrations as I
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            (home / ".cursor").mkdir()
+            self.assertEqual(I.detect(home), [])  # 不自動裝：有 .cursor 也可能只是 Cursor 編輯器
+            dst = home / ".cursor" / "skills" / "desk" / "SKILL.md"
+            msgs = I.setup(home, ["grok"])
+            self.assertTrue(any("Grok Bot" in m for m in msgs), msgs)
+            self.assertTrue(any("截" in m for m in msgs), msgs)  # 提醒：沒用到 skill 時 Grok 可能自己截全螢幕
+            text = dst.read_text(encoding="utf-8")
+            self.assertIn(I.ds_launcher() + " now", text)  # 寫的是這個安裝位置的絕對路徑（ds 不一定在 PATH）
+            self.assertNotIn("{{", text)
+            self.assertIn("Do not capture the screen yourself", text)
+            I.setup(home, ["grok"])  # 再跑一次：直接蓋掉自己的，不留備份
+            self.assertEqual(list(dst.parent.glob("SKILL.md.bak-*")), [])
+            I.setup(home, ["grok"], remove=True)
+            self.assertFalse(dst.parent.exists())
+            # 已經有一份不是我們的 desk skill：先備份再裝；移除時只刪我們的
+            dst.parent.mkdir(parents=True)
+            dst.write_text("someone else's skill", encoding="utf-8")
+            I.setup(home, ["grok"])
+            [bak] = dst.parent.glob("SKILL.md.bak-desktop-sense-*")
+            self.assertEqual(bak.read_text(encoding="utf-8"), "someone else's skill")
+            I.setup(home, ["grok"], remove=True)
+            self.assertFalse(dst.exists())
+            self.assertTrue(bak.exists())
+
+    def test_ds_launcher_format(self):
+        from dsense.integrations import _launcher_for
+        self.assertEqual(_launcher_for(r"C:\tools\desktop-sense\bin\ds.cmd", True), r"C:\tools\desktop-sense\bin\ds.cmd")
+        # 有空白：先用 8.3 短路徑；沒有短路徑就用 PowerShell 的 & "…"（Grok Bot 在 Windows 用 PowerShell 跑指令）
+        self.assertEqual(_launcher_for(r"C:\My Tools\bin\ds.cmd", True, r"C:\MYTOOL~1\bin\ds.cmd"), r"C:\MYTOOL~1\bin\ds.cmd")
+        self.assertEqual(_launcher_for(r"C:\My Tools\bin\ds.cmd", True), r'& "C:\My Tools\bin\ds.cmd"')
+        self.assertEqual(_launcher_for("/Users/a b/desktop-sense/bin/ds", False), '"/Users/a b/desktop-sense/bin/ds"')
+
     def test_is_ours(self):
         from dsense.integrations import claude_command, is_ours, shim_command
         for yes in (claude_command(), shim_command(), "ds.cmd hook", "ds hook"):
