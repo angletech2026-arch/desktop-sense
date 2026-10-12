@@ -442,15 +442,17 @@ class ReleaseTest(unittest.TestCase):
         from unittest import mock
         from dsense import integrations as I
         quoted = '"C:/a b/python.exe" "C:/a b/ds.py" hook'
-        with mock.patch.object(I, "claude_command", return_value=quoted), mock.patch.object(I.os, "name", "nt"):
-            self.assertIsNone(I.muse_command())
-            with tempfile.TemporaryDirectory() as d:
-                cfg = Path(d) / ".config" / "muse"
-                cfg.mkdir(parents=True)
-                (cfg / "settings.json").write_text('{"schema_version": 1}', encoding="utf-8")
-                msgs = I.setup(Path(d), ["muse"])
-                self.assertTrue(any("⚠" in m for m in msgs), msgs)
-                self.assertEqual((cfg / "settings.json").read_text(encoding="utf-8"), '{"schema_version": 1}')
+        with tempfile.TemporaryDirectory() as d:
+            # 路徑要在 mock os.name 之前建：mock 之後 Path() 會照假的 os.name 建出另一種平台的路徑（macOS 上直接出錯）
+            home = Path(d)
+            cfg = home / ".config" / "muse"
+            cfg.mkdir(parents=True)
+            (cfg / "settings.json").write_text('{"schema_version": 1}', encoding="utf-8")
+            with mock.patch.object(I, "claude_command", return_value=quoted), mock.patch.object(I.os, "name", "nt"):
+                self.assertIsNone(I.muse_command())
+                msgs = I.setup(home, ["muse"])
+            self.assertTrue(any("⚠" in m for m in msgs), msgs)
+            self.assertEqual((cfg / "settings.json").read_text(encoding="utf-8"), '{"schema_version": 1}')
         with mock.patch.object(I, "claude_command", return_value='"/a b/python" "/a b/ds.py" hook'), \
                 mock.patch.object(I.os, "name", "posix"):
             self.assertEqual(I.muse_command(), '"/a b/python" "/a b/ds.py" hook')  # macOS / Linux 用 sh，引號沒問題
